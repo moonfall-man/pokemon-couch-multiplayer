@@ -130,9 +130,20 @@ end
 -- rather than sending from here. One code path builds the message, and it is
 -- the one that also updates lastMap/lastX/lastY -- sending directly would let
 -- those drift out of step with what the peers have actually been told.
+--
+-- IDENTITY IS PART OF THE RESEND, not a once-per-session event.
+--
+-- hello carries the body sprite and species, and it used to be gated on a
+-- helloSent flag that was set true forever the first time it went out. So a
+-- peer that connected late, or whose ghost was torn down and rebuilt from a
+-- bare pos, never learned who anybody was: they rendered as a generic
+-- fallback body with no follower Pokemon, permanently, with no path back.
+-- Clearing lastSpecies re-arms the party message for the same reason.
 function Presence:armResend()
   self.lastSent = 0
   self.lastMap = nil
+  self.helloSent = false
+  self.lastSpecies = nil
 end
 
 function Presence:sendBye(transport)

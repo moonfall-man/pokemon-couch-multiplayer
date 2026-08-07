@@ -326,6 +326,20 @@ mod.hooks:wrap("input.step", function(next, game, dt)
 
   t:update()
 
+  -- Someone new arrived, so re-announce ourselves.
+  --
+  -- A peer that connects late gets nothing retroactively: Transport only
+  -- queues messages while it has NO peers, and that outbox is drained on the
+  -- first connection. Without this, the third player -- and anyone whose
+  -- session restarted -- would see everyone already in the game as a generic
+  -- body with no follower, permanently, because identity is only ever
+  -- volunteered and never asked for.
+  local peers = t:peerCount()
+  if peers > (session.peerCount or 0) and session.presence then
+    session.presence:armResend()
+  end
+  session.peerCount = peers
+
   local pool = session.pool
 
   -- My own map, read straight from the world rather than from a map event:

@@ -120,7 +120,18 @@ local function makeNpc(world, game, mapId, sprite, x, y, name)
   npc.passable = true      -- never blocks a step (Collision.occupied)
   npc.frozen = true        -- never wanders, never faces the player on its own
 
-  table.insert(ow.npcs, npc)
+  -- ENTITIES ONLY, deliberately not ow.npcs.
+  --
+  -- entities is the list the world DRAWS (OverworldController's y-sorted draw
+  -- loop) and the list Collision.occupied walks -- and occupied honours
+  -- `passable`, so we are drawn and never block.
+  --
+  -- npcs is a different job: it is what npcAtCell searches when you press A,
+  -- what pushableAtCell searches for boulders, what the trainer-sighting scan
+  -- walks, and what gets npc:update called on it every frame. npcAtCell
+  -- ignores `passable` entirely, so a ghost in that list would answer your A
+  -- press with no script behind it. None of those jobs should ever find a
+  -- ghost, so a ghost is simply not in that list.
   if ow.entities then table.insert(ow.entities, npc) end
   return npc
 end
@@ -176,14 +187,14 @@ function Ghost:place(world, game, mapId, x, y, facing, bodySprite, footSprite)
 
   -- Remember WHICH list we were added to.
   --
-  -- OverworldState:setMap rebuilds `self.npcs = {}` and
-  -- `self.entities = { self.player }` from the map definition -- not just on
-  -- a warp, but on any reload (door stamping, a seamless neighbour swap).
-  -- Our bodies are not in that definition, deliberately, so they go with it
-  -- and nothing tells us. Holding the TABLE lets us notice in O(1): a new
-  -- table means everything we put in the old one is gone.
+  -- OverworldState:setMap rebuilds `self.entities = { self.player }` from
+  -- scratch -- not just on a warp, but on any reload (door stamping, a
+  -- seamless neighbour swap). Our bodies are not in the map definition,
+  -- deliberately, so they go with it and nothing tells us. Holding the TABLE
+  -- lets us notice in O(1): a new table means everything we put in the old
+  -- one is gone.
   local ow = overworld(world)
-  self.npcsRef = ow and ow.npcs or nil
+  self.entitiesRef = ow and ow.entities or nil
 
   -- Shadow the class method so a gliding body still animates its walk cycle;
   -- NPC.walkPhase is moving-only and this body is never "moving" (#411 does
@@ -234,7 +245,7 @@ function Ghost:update(world, game)
   -- them back rather than waiting for a position message that may be seconds
   -- away, or may never come if the peer is standing still.
   local ow = overworld(world)
-  if ow and ow.npcs and self.npcsRef and ow.npcs ~= self.npcsRef then
+  if ow and ow.entities and self.entitiesRef and ow.entities ~= self.entitiesRef then
     local mapId = ow.map and ow.map.id
     if mapId and mapId == self.mapId then
       self:place(world, game, mapId, self.targetX, self.targetY,
