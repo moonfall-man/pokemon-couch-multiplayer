@@ -1,0 +1,20 @@
+{
+  "id": "GHOST_LINK",
+  "name": "GHOST LINK",
+  "version": "0.1.0",
+  "api": 2,
+  "entry": "main.lua",
+  "profile": "content",
+  "category": "MULTIPLAYER",
+  "game_version": "0.0.0-dev || >=0.1.37 <2.0.0",
+  "priority": 50,
+  "dependencies": [],
+  "optional_dependencies": [],
+  "conflicts": [],
+  "permissions": [
+    "network",
+    "engine_internals"
+  ],
+  "affects_link": false,
+  "description": "See the other players walking around your own world. Everyone runs a complete, independent game -- own save, own party, own progress -- and the only thing on the wire is where each player stands. A player on your map appears as a walking figure with their lead Pokemon trailing behind, drawn the way Yellow's Pikachu is: in the draw list but not the collision list, so you walk straight through each other. No interactions, no shared state, nothing that can touch your save. Up to four players over LAN or the same PC. Follower art is supplied by the player -- Gen 1 has no walking overworld sprites for Pokemon, so assets/followers/ is BYO with an importer included."
+}

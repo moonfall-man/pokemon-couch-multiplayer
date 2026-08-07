@@ -1,0 +1,31 @@
+-- Sharing metadata, read by tooling and the manager detail pane.
+return {
+  summary = "See the other players walking around your own world -- presence only, nothing shared.",
+  author = "moonf",
+  contact = "https://github.com/moonf",
+  tags = { "multiplayer", "presence", "ghosts", "co-op", "followers", "network" },
+  differences = {
+    changed = {
+      "nothing about your own game changes: no shared saves, party, flags, scripts, encounters or battles",
+    },
+    added = {
+      "other players appear as walking figures on maps you share with them",
+      "each ghost's lead Pokemon HOVERS one cell behind it, bobbing -- all 151 species covered with no imported art, using the ROM's own party-menu icons",
+      "up to four players on one PC or over a LAN, via a multi-peer enet session",
+      "assets/followers/ -- an optional BYO sprite folder with an importer, for when an archetype icon is not specific enough",
+    },
+    known = {
+      "presence only: ghosts cannot be talked to, battled, traded with, or collided with, by design",
+      "off unless POKEGHOST_HOST or POKEGHOST_JOIN is set -- installing it never opens a socket on its own",
+      "a ghost exists only while that player is on the same map as you; different map means despawned, not hidden",
+      "ghosts trail your peer by their network latency plus up to one grid step, which on a LAN is not visible",
+      "follower icons are archetypes, not portraits: the whole Bulbasaur line shows the GRASS icon unless you supply per-species art",
+      "the engine's own link cable (trades, link battles) is untouched and still works",
+      "needs lua-enet, which LOVE bundles; a build without it logs and stays off",
+    },
+  },
+  credits = {
+    { who = "pret/pokered", for_ = "the sprite and map data the ghosts are drawn from" },
+  },
+  compat = { engine = ">=0.1.37 <2.0.0", modApi = 2 },
+}

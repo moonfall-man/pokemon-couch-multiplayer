@@ -1,0 +1,44 @@
+# ---------------------------------------------------------------- ROM data
+# Never, under any circumstances. The whole design of these mods is that they
+# ship code which DERIVES from your own cartridge dump and never carries the
+# dump itself -- committing one would undo that in a single push.
+*.gb
+*.gbc
+*.sgb
+*.sav
+*.srm
+*.state
+
+# ------------------------------------------------------------ other people's
+# The engine build, the voxel mod, and any downloaded sprite packs. Not ours
+# to redistribute, and large.
+*.apk
+*.ipa
+BATTLE_ART_VOXEL_FORK*/
+sprites/
+*.zip
+
+# ------------------------------------------------------------------- derived
+# Rebuildable from the APK by splitscreen/build.ps1 or linux/build.sh, so
+# there is no reason to carry 3 MB of it in history. Both builders default to
+# a `game/` directory beside themselves.
+*.love
+game/
+
+# The LOVE runtime, unpacked by setup-love.ps1 from the official build.
+splitscreen/love/
+
+# --------------------------------------------------------------- generated art
+# Follower frames are built from your ROM on first boot and live in the save
+# directory, but ignore the mod-local folder too in case anything lands there.
+GHOST_LINK/assets/followers/*.png
+GHOST_LINK/assets/followers/*.gif
+
+# ----------------------------------------------------------------------- junk
+.DS_Store
+Thumbs.db
+desktop.ini
+*.log
+*.tmp
+__pycache__/
+*.pyc

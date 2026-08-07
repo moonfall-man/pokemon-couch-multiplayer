@@ -1,0 +1,19 @@
+{
+  "id": "PAD_HOTKEYS",
+  "name": "PAD HOTKEYS",
+  "version": "0.1.0",
+  "api": 2,
+  "entry": "main.lua",
+  "profile": "content",
+  "category": "CONTROLS",
+  "game_version": "0.0.0-dev || >=0.1.37 <2.0.0",
+  "priority": 40,
+  "dependencies": [],
+  "optional_dependencies": [],
+  "conflicts": [],
+  "permissions": [
+    "engine_internals"
+  ],
+  "affects_link": false,
+  "description": "Reach the display hotkeys from a controller. The engine's digit toggles -- and every mod pipeline that claims one, including the voxel mod's VOXEL, V-GRID, T-SHIFT, V-CURVE, 3D-BTL and WATER ladders -- are keyboard-only, which is useless on a couch. This binds them to the pad buttons the engine leaves free: the two stick clicks (L3/R3) and the X/Y face buttons. Each button's target is an options row, so every player can pick their own. Polls the pad rather than intercepting its events, and honours the split-screen pad assignment so player 2's stick click only changes player 2's screen."
+}
