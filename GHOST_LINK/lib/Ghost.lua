@@ -248,8 +248,8 @@ function Ghost:update(world, game)
   end
 
   self:updateBody(world, game)
-  self:updateFoot(world)
-  self:updateBall(world)
+  self:updateFoot(world, game)
+  self:updateBall(world, game)
 end
 
 function Ghost:updateBody(world, game)
@@ -305,7 +305,32 @@ end
 
 -- The follower drifts toward the cell the body just left, bobbing. No grid
 -- step and no walk cycle: all the life is in the easing and the sine.
-function Ghost:updateFoot(world)
+--
+-- Its EXISTENCE is derived rather than remembered. It used to be created once
+-- in place() and then trusted, so anything that dropped it -- a spawn that
+-- failed during a map transition, the engine rebuilding its lists -- left the
+-- trainer standing there with no Pokemon and nothing that ever noticed. Now
+-- the rule is simply "a spawned body with art has a follower", checked every
+-- tick, so a follower that goes missing comes straight back.
+function Ghost:updateFoot(world, game)
+  if not self.footSprite then
+    if self.footNpc then
+      dropNpc(world, self.footNpc)
+      self.footNpc = nil
+    end
+    return
+  end
+
+  if not self.footNpc and self.mapId then
+    local fx = self.prevX or self.x
+    local fy = self.prevY or self.y
+    if not (fx and fy) then return end
+    self.footNpc = makeNpc(world, game, self.mapId, self.footSprite, fx, fy,
+                           "GHOSTMON_" .. self.peerId)
+    if not self.footNpc then return end
+    self.footPx, self.footPy = fx * 16, fy * 16
+  end
+
   local npc = self.footNpc
   if not npc then return end
   if not (self.footPx and self.prevX) then return end
@@ -354,7 +379,21 @@ end
 -- Orbits over the head. The ball sprite is a single frame and the sprite path
 -- has no rotation, so the spin IS the orbit -- a small fast circle reads as a
 -- ball spinning in place.
-function Ghost:updateBall(world)
+function Ghost:updateBall(world, game)
+  -- Derived the same way the follower is: battling and spawned means there is
+  -- a ball, whether or not one was successfully made earlier.
+  if not self.battling then
+    if self.ballNpc then
+      dropNpc(world, self.ballNpc)
+      self.ballNpc = nil
+    end
+    return
+  end
+  if not self.ballNpc and self.mapId and self.x then
+    self.ballNpc = makeNpc(world, game, self.mapId, BALL_SPRITE, self.x, self.y,
+                           "GHOSTBALL_" .. self.peerId)
+  end
+
   local npc = self.ballNpc
   if not npc or not self.bodyPx then return end
 
