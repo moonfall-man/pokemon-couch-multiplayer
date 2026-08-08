@@ -7,55 +7,64 @@ For a projector setup. Two players, two controllers, one screen.
 > root, and its missing `zenity` blocks the ROM import outright. See
 > [../OTHER-PLATFORMS.md](../OTHER-PLATFORMS.md) for the details.
 
-## 1. Get LÖVE
+Nothing here builds or patches the game. You run the official Linux release and
+drop three mod folders next to your saves.
+
+## 1. Get the game
+
+Download the Linux build from the project's
+[releases](https://github.com/bryanthaboi/gen1recomp/releases) — the **arm64**
+one on a Pi — and make it executable:
 
 ```bash
-sudo apt install love wmctrl xdotool unzip
+chmod +x gen1recomp-*.AppImage
+```
+
+Put it beside these scripts, or pass `-e <path>` to `play.sh`.
+
+If the AppImage won't run for lack of FUSE, extract it once and point at the
+binary inside:
+
+```bash
+./gen1recomp-*.AppImage --appimage-extract
+./play.sh -p 2 -e ./squashfs-root/AppRun
+```
+
+## 2. Window-manager helpers
+
+```bash
+sudo apt install wmctrl xdotool
 ```
 
 `wmctrl` does the tiling, `xdotool` reads the screen size. Both optional —
-without them the windows just launch untiled.
+without them the windows just launch untiled and you drag them once.
 
-The game targets **LÖVE 11.5**. If `apt` gives you an older 11.x and something
-misbehaves, use the exact bundled one instead:
+## 3. Copy over what you need
 
-```bash
-./gen1recomp-0.1.75-linux-arm64.AppImage --appimage-extract
-```
+From the Windows machine (or a `git clone` of this repo), bring the three mod
+folders: `PAD_OWNER/`, `PAD_HOTKEYS/`, `GHOST_LINK/`. `install.sh` expects them
+two directories up, which is where they sit in a checkout.
 
-then pass `-l ./squashfs-root/bin/love` to `play.sh`.
-
-## 2. Copy over what you need
-
-From the Windows machine, bring:
-
-- `gen1recomp-0.1.75-android.apk` (or the `.love`) — the game to patch
-- `splitscreen/patch/PadOwner.lua` — must sit at `../patch/PadOwner.lua`
-  relative to these scripts
-- optionally `GHOST_LINK/` and `PAD_HOTKEYS/`
-
-## 3. Build
+## 4. Install and import
 
 ```bash
-chmod +x build.sh play.sh
-./build.sh
-```
-
-Unpacks the game into `./game/` and applies the controller-routing patch —
-12 anchored edits, each verified. The output is a **directory**, not a `.love`:
-LÖVE runs a directory directly, so no zip tooling is needed and you can edit
-the patched files in place.
-
-## 4. The ROM
-
-Run once and import it normally — Pi OS has `zenity`, so the picker works:
-
-```bash
+chmod +x install.sh play.sh
+./install.sh -p 1
 ./play.sh -p 1
 ```
 
-Or skip the import entirely by copying the already-extracted cache from the
-Windows machine into `~/.local/share/love/gen1recomp-p1/`:
+Import the ROM normally — Pi OS has `zenity`, so the picker works. Then quit
+and set up everyone else:
+
+```bash
+./install.sh -p 2
+```
+
+That copies the mods to each player and seeds player 1's extracted cache to the
+rest, so only one person does the import.
+
+To skip the import entirely, copy the already-extracted cache from the Windows
+machine into `~/.local/share/gen1recomp-p1/`:
 
 ```
 red/data/generated/
@@ -63,13 +72,10 @@ red/assets/generated/
 red/rom-cache.complete
 ```
 
-Then seed the other players by copying those same three into
-`gen1recomp-p2/`, and drop any mods into `gen1recomp-pN/mods/`.
-
 ## 5. Play
 
 ```bash
-./play.sh -p 2
+./play.sh -p 2 -G
 ```
 
 Plug both controllers in **first**. Player 1 gets the pad SDL enumerates first.
@@ -78,11 +84,23 @@ Plug both controllers in **first**. Player 1 gets the pad SDL enumerates first.
 | --- | --- |
 | `-p N` | players (1–4) |
 | `-g red\|blue\|yellow` | which game |
-| `-G` | also ghost-link them (needs `GHOST_LINK`) |
+| `-G` | also ghost-link them |
 | `-T` | don't tile |
-| `-l PATH` | use a specific `love` binary |
+| `-e PATH` | use a specific game binary / AppImage |
 
 Ctrl-C in the terminal closes every instance.
+
+## Where things live
+
+```
+~/.local/share/gen1recomp-p1/          saves, options, mods, ROM cache
+~/.local/share/gen1recomp-p1/mods/     drop mod folders here
+```
+
+LÖVE drops the `love/` segment for **fused** builds, and the official release is
+fused — so it's `~/.local/share/<identity>`, not `~/.local/share/love/<identity>`.
+Both scripts prefer whichever already has data in it, so a plain `love .` setup
+from an earlier version keeps working.
 
 ## Performance
 
@@ -99,12 +117,21 @@ players, one machine each with `-G` ghost-linking is the better shape.
 
 ## What's tested
 
-`build.sh` was run on the real APK here and produces a `main.lua`
-**byte-identical** to the Windows build that is verified working in-game, and
-rebuilding is deterministic. Both scripts pass `bash -n` and their error paths
-were exercised.
+Both scripts pass `bash -n` and their error paths were exercised.
 
-`play.sh`'s launching and tiling have **not** been run — there's no Linux
-machine here. The parts it depends on (per-instance `POKEPORT_IDENTITY`,
-`POKEPORT_PAD` routing, the SDL background-events hint) are all verified on
-Windows and are platform-independent Lua.
+**They have not been run on Linux** — there's no Linux machine here. What they
+depend on is verified on Windows against the real engine and is
+platform-independent Lua: the `PAD_OWNER` mod loading and wrapping every
+joystick callback (28/28 in-game assertions), per-instance `POKEPORT_IDENTITY`,
+`POKEPORT_PAD` routing, and the SDL background-events hint.
+
+Two Linux-specific things are best-effort and worth knowing about:
+
+- **Save-directory detection.** The fused-vs-plain rule is LÖVE's own and
+  identical on every desktop platform, and the fused path was measured on
+  Windows — but `savedir()` still prefers a folder that already exists rather
+  than trusting the rule blindly.
+- **Tiling an AppImage.** An AppImage is a wrapper, so the process that owns
+  the window is a *child* of the pid we launched. `play.sh` walks the process
+  tree to find it rather than matching the launched pid alone, which would have
+  silently skipped tiling on exactly the launch method recommended above.

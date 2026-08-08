@@ -58,18 +58,43 @@ mod.options:define(schema)
 -- ------- pad ownership
 --
 -- In split screen every process sees every pad, so a poll has to ask the same
--- question the patched event path asks: is this the pad THIS window owns?
--- Absent (an unpatched build), every pad counts, which is the stock
--- single-player behaviour.
+-- question the event path asks: is this the pad THIS window owns?  Absent (no
+-- PAD_OWNER installed), every pad counts, which is stock single-player
+-- behaviour and the right default -- a missing filter must never mean a dead
+-- button.
+--
+-- Resolved LAZILY and re-tried until it lands, rather than looked up once at
+-- load.  mod.find returns nil for a mod that has not run yet, and while the
+-- optional_dependency in the manifest orders PAD_OWNER ahead of this one, a
+-- lookup that silently degrades to "every pad" on a load-order accident is
+-- exactly the kind of bug that only shows up on someone else's machine.  Ask
+-- again next frame instead of remembering a nil.
 local PadOwner
-do
-  local ok, m = pcall(require, "src.core.PadOwner")
-  if ok then PadOwner = m end
+
+local function resolveOwner()
+  if PadOwner then return PadOwner end
+
+  -- the mod, which is where it lives now
+  local ok, handle = pcall(mod.find, mod, "PAD_OWNER")
+  if ok and handle and handle.exports and handle.exports.owns then
+    PadOwner = handle.exports
+    return PadOwner
+  end
+
+  -- a legacy engine-patched build, where it was spliced into src/core/
+  local okReq, m = pcall(require, "src.core.PadOwner")
+  if okReq and type(m) == "table" and m.owns then
+    PadOwner = m
+    return PadOwner
+  end
+
+  return nil
 end
 
 local function owned(js)
-  if not PadOwner or not PadOwner.owns then return true end
-  local ok, yes = pcall(PadOwner.owns, js)
+  local owner = resolveOwner()
+  if not owner then return true end
+  local ok, yes = pcall(owner.owns, js)
   return ok and yes
 end
 
@@ -113,3 +138,7 @@ end)
 
 mod.exports.version = "0.1.0"
 mod.exports.buttons = BUTTONS
+-- Whoever is currently answering the ownership question, or nil for "nobody,
+-- so every pad counts". Exported so the split-screen setup can be verified
+-- from outside rather than inferred from a button that did not do anything.
+mod.exports.padOwner = resolveOwner

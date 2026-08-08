@@ -76,8 +76,13 @@ spin is a tight fast orbit rather than a real rotation.
 Install into each player's mods folder:
 
 ```
-%APPDATA%\LOVE\<identity>\mods\GHOST_LINK\
+%APPDATA%\<identity>\mods\GHOST_LINK\
 ```
+
+`<identity>` is `pokemon-love2d` for an ordinary install, or `gen1recomp-pN`
+per player under the split-screen launcher — which puts it there for you
+(`splitscreen\install.ps1`). On Linux and macOS the same folder lives under
+`~/.local/share/` and `~/Library/Application Support/`.
 
 It stays **off** unless told otherwise — installing it never opens a socket
 on its own.

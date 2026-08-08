@@ -1,8 +1,8 @@
 -- Sharing metadata, read by tooling and the manager detail pane.
 return {
   summary = "See the other players walking around your own world -- presence only, nothing shared.",
-  author = "moonf",
-  contact = "https://github.com/moonf",
+  author = "moonfall-man",
+  contact = "https://github.com/moonfall-man/pokemon-couch-multiplayer",
   tags = { "multiplayer", "presence", "ghosts", "co-op", "followers", "network" },
   differences = {
     changed = {

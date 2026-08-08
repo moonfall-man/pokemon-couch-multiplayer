@@ -18,15 +18,13 @@ BATTLE_ART_VOXEL_FORK*/
 sprites/
 *.zip
 
-# ------------------------------------------------------------------- derived
-# Rebuildable from the APK by splitscreen/build.ps1 or linux/build.sh, so
-# there is no reason to carry 3 MB of it in history. Both builders default to
-# a `game/` directory beside themselves.
+# ------------------------------------------------------------------- engine
+# The official gen1recomp build, unzipped here so the launcher scripts find
+# it. Not ours to redistribute -- download it from the project's releases.
+gen1recomp/
+gen1recomp-*/
+*.AppImage
 *.love
-game/
-
-# The LOVE runtime, unpacked by setup-love.ps1 from the official build.
-splitscreen/love/
 
 # --------------------------------------------------------------- generated art
 # Follower frames are built from your ROM on first boot and live in the save

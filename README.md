@@ -4,13 +4,18 @@ Play Pokémon Red side by side — two to four people, one machine, one screen �
 on top of [gen1recomp](https://github.com/bryanthaboi/gen1recomp), the LÖVE2D
 reimplementation of Gen 1.
 
-Three separate pieces, usable independently:
+**It's just mods.** Nothing is patched, unpacked or rebuilt — you drop three
+folders into `mods/` and run the official release, exactly the way you'd
+install the voxel mod.
 
-| | what it is |
+| mod | what it does |
 | --- | --- |
-| **[splitscreen/](splitscreen/)** | Runs 2–4 copies side by side, each with its own controller, saves and tiled window |
-| **[GHOST_LINK/](GHOST_LINK/)** | A mod: see the other players walking around *your* world, with their Pokémon hovering behind them |
-| **[PAD_HOTKEYS/](PAD_HOTKEYS/)** | A mod: reach the display hotkeys from a controller instead of the keyboard |
+| **[PAD_OWNER/](PAD_OWNER/)** | One controller per window — the piece that makes split screen possible at all |
+| **[GHOST_LINK/](GHOST_LINK/)** | See the other players walking around *your* world, with their Pokémon hovering behind them |
+| **[PAD_HOTKEYS/](PAD_HOTKEYS/)** | Reach the display hotkeys from a controller instead of the keyboard |
+
+Plus **[splitscreen/](splitscreen/)** — launcher scripts that install the mods
+and start 2–4 copies with the right environment, tiled.
 
 ---
 
@@ -27,11 +32,32 @@ function Input:gamepadpressed(joystick, button)
 end
 ```
 
-— so two pads press two games' buttons at once. `splitscreen/` adds the
-missing filter and gives each copy its own save identity.
+— so two pads press two games' buttons at once. **PAD_OWNER** adds the missing
+filter, and the launcher gives each copy its own save identity.
 
 That gets you two independent games. **GHOST_LINK** then makes them aware of
 each other, without sharing anything that could break either save.
+
+### This started as a patch, and didn't need to be
+
+`main.lua` defines `love.gamepadpressed` at chunk level; mods load later, from
+inside `love.load`. Reading that ordering, a mod looks hopelessly too late —
+so the project shipped a build step that spliced guards into `main.lua` and
+kept its anchors matching upstream forever.
+
+The flaw is that *"too late to define the callback"* and *"too late to **replace**
+it"* are different claims, and only the first is true. LÖVE never captures
+these functions at boot; `love.handlers` looks up `love.<name>` at the moment
+each event is dispatched. Checked in the real game rather than argued from
+source:
+
+```
+gamepadpressed defined at driver time: function
+handlers dispatch reached wrapper: true
+```
+
+The whole build step was working around a restriction that was never there.
+It's gone.
 
 ## Ghosts, not co-op
 
@@ -67,24 +93,47 @@ in your save directory, not in this repo.
 
 ## Getting started
 
-Everything needs a legally-dumped ROM, which you supply — see each folder's
-README:
-
-- **[splitscreen/README.md](splitscreen/README.md)** — Windows setup
-- **[splitscreen/linux/README.md](splitscreen/linux/README.md)** — Raspberry Pi / Linux
-- **[splitscreen/OTHER-PLATFORMS.md](splitscreen/OTHER-PLATFORMS.md)** — macOS, Batocera, and playing across machines over LAN
-- **[GHOST_LINK/README.md](GHOST_LINK/README.md)** — the presence mod
-- **[PAD_HOTKEYS/README.md](PAD_HOTKEYS/README.md)** — controller hotkeys
-
-Short version, on Windows:
+You supply a legally-dumped ROM and the official
+[gen1recomp release](https://github.com/bryanthaboi/gen1recomp/releases). Unzip
+it into `gen1recomp/` beside this README, then:
 
 ```bash
-cd splitscreen; .\build.ps1
+cd splitscreen; .\install.ps1 -Players 2
 ```
 
 ```bash
 .\play.ps1 -Players 2 -Ghosts
 ```
+
+`install.ps1` copies the three mods into each player's folder and seeds
+player 1's ROM cache to everyone else. First run only: launch with
+`-Players 1`, import your ROM, quit, and re-run `install.ps1`.
+
+Longer versions, per platform:
+
+- **[splitscreen/README.md](splitscreen/README.md)** — Windows setup
+- **[splitscreen/linux/README.md](splitscreen/linux/README.md)** — Raspberry Pi / Linux
+- **[splitscreen/OTHER-PLATFORMS.md](splitscreen/OTHER-PLATFORMS.md)** — macOS, Batocera, and playing across machines over LAN
+- **[PAD_OWNER/README.md](PAD_OWNER/README.md)** — the controller filter
+- **[GHOST_LINK/README.md](GHOST_LINK/README.md)** — the presence mod
+- **[PAD_HOTKEYS/README.md](PAD_HOTKEYS/README.md)** — controller hotkeys
+
+### Installing by hand
+
+The scripts are convenience, not magic. All they do is copy folders:
+
+```
+%APPDATA%\<identity>\mods\PAD_OWNER\
+%APPDATA%\<identity>\mods\PAD_HOTKEYS\
+%APPDATA%\<identity>\mods\GHOST_LINK\
+```
+
+`<identity>` is `pokemon-love2d` for an ordinary install, or `gen1recomp-pN`
+per player under the launcher. On Linux and macOS the same folders live under
+`~/.local/share/` and `~/Library/Application Support/`.
+
+`PAD_OWNER` is completely inert unless `POKEPORT_PAD` is set, so installing it
+on a normal single-player copy changes nothing.
 
 ---
 
@@ -94,8 +143,8 @@ cd splitscreen; .\build.ps1
 The mods ship code that *derives* from your own dump at runtime; the dump never
 enters this repository. `.gitignore` enforces it.
 
-**No engine build.** `splitscreen/build.ps1` patches the official release you
-downloaded yourself.
+**No engine build, and no engine patch.** Everything here is a mod loaded by
+the official release you downloaded yourself. Nothing rewrites the game.
 
 **No third-party mods or sprite packs.**
 

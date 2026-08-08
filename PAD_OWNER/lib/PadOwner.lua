@@ -25,6 +25,10 @@
 -- Deliberately fails OPEN: an unparseable POKEPORT_PAD means "all pads"
 -- rather than "no pads", because a typo should not leave someone unable to
 -- press Start.
+--
+-- Pure Lua with no engine requires, deliberately: this file was a patch
+-- dropped into src/core/ before it was a mod, and keeping it self-contained
+-- is what let it become one.
 
 local PadOwner = {}
 
@@ -46,12 +50,21 @@ else
   mode = "all"
 end
 
+PadOwner.mode = mode
+PadOwner.index = (mode == "index") and wantIndex or nil
 PadOwner.keyboardEnabled = os.getenv("POKEPORT_KEYBOARD") ~= "0"
 
--- Resolved lazily rather than at load: this module is required from main.lua
--- before LÖVE has enumerated anything, so getJoysticks() is empty here.  The
--- first pad event arrives long after enumeration, and a hotplug re-arms the
--- lookup through refresh().
+-- Is this process actually filtering anything?
+--
+-- The answer is no for a stock single-player install, and that is the point:
+-- the mod can sit permanently in mods/ and wrap nothing at all until someone
+-- launches split screen.  An installed mod that does nothing until asked is
+-- much easier to reason about than one you have to remember to uninstall.
+PadOwner.filtering = (mode ~= "all") or (not PadOwner.keyboardEnabled)
+
+-- Resolved lazily rather than at load: this module is loaded while the mods
+-- are loading, and while LÖVE has enumerated pads by then, a hotplug can
+-- reorder them at any moment.  refresh() re-arms the lookup.
 local ownedJoystick = nil
 local ownedID = nil
 local resolved = false
@@ -102,7 +115,13 @@ end
 -- SDL drops joystick events for an UNFOCUSED window unless this hint is set,
 -- which would leave every player but whoever clicked last unable to move.
 -- LÖVE ships SDL2 as a shared library on desktop, so ffi.load can reach
--- SDL_SetHint; the hint is re-read per event, so setting it late still takes.
+-- SDL_SetHint.
+--
+-- Setting it this late -- from a mod, long after SDL_Init -- still takes:
+-- SDL registers a hint CALLBACK for this name when the joystick subsystem
+-- starts, and SDL_SetHint fires that callback, so the flag the event pump
+-- reads is updated on the spot rather than sampled once at init.
+--
 -- Best-effort: some builds already set it, and a static link makes the symbol
 -- unreachable from here.  Returns true if the call went through.
 function PadOwner.allowBackgroundEvents()

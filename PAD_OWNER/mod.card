@@ -1,0 +1,24 @@
+-- Sharing metadata, read by tooling and the manager detail pane.
+return {
+  summary = "One controller per window -- the missing piece for split screen.",
+  author = "moonfall-man",
+  contact = "https://github.com/moonfall-man/pokemon-couch-multiplayer",
+  tags = { "controls", "splitscreen", "multiplayer", "couch", "gamepad" },
+  differences = {
+    changed = {
+      "which controller this copy of the game listens to -- and nothing else",
+    },
+    added = {
+      "POKEPORT_PAD=N binds this window to the Nth pad in SDL's enumeration order",
+      "POKEPORT_KEYBOARD=0 additionally mutes the keyboard for this window",
+      "the SDL background-events hint, so a window that is not focused still receives its pad",
+    },
+    known = {
+      "completely inert unless POKEPORT_PAD is set: installing it changes nothing about single player",
+      "pad numbering is SDL's enumeration order, which is normally the order the pads were connected -- plug them all in before launching",
+      "mods load once a game boots, so the ROM importer and the launcher screen are not filtered; launch with --game=red to skip straight past both",
+      "an unparseable POKEPORT_PAD means every pad rather than none, so a typo cannot leave someone unable to press Start",
+    },
+  },
+  compat = { engine = ">=0.1.37 <2.0.0", modApi = 2 },
+}

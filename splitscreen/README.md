@@ -4,9 +4,11 @@ Run up to 4 independent copies of the game at once, tiled on one screen, each
 with its own controller and its own saves. Two people, two pads, two windows,
 one couch.
 
-This is **not** one window split into quadrants — it's N real game windows
-side by side. See [Why not one window](#why-not-one-window) for what that
-would take.
+This is **not** one window split into quadrants — it's N real game windows side
+by side. See [Why not one window](#why-not-one-window) for what that would take.
+
+Nothing here patches or rebuilds the game. These are launcher scripts around
+the official release, plus three ordinary mods.
 
 ---
 
@@ -23,71 +25,61 @@ function Input:gamepadpressed(joystick, button)
 end
 ```
 
-So both pads press both games' buttons at once. `patch/PadOwner.lua` adds the
-missing filter, and `build.ps1` wires it into every joystick callback in
-`main.lua`.
+So both pads press both games' buttons at once. The
+[**PAD_OWNER**](../PAD_OWNER) mod adds the missing filter — it wraps every
+joystick callback and drops events from pads this window doesn't own.
 
-The guards go in **`main.lua`**, not `Input.lua`, on purpose:
+It wraps the callbacks in **`main.lua`**, not `Input.lua`, on purpose:
 `Game:gamepadpressed` cycles GAME SPEED and routes menu input *before* it
-delegates to `Input`, so a filter inside `Input` would still let player 2's
-pad drive player 1's menus.
+delegates to `Input`, so a filter inside `Input` would still let player 2's pad
+drive player 1's menus.
 
 ---
 
 ## Setup
 
-### 1. LÖVE — already done
+### 1. Get the official build
 
-`love\love.exe` is in place (LÖVE 11.5, the version the game targets).
+Download `gen1recomp-<version>-windows.zip` from the project's
+[releases](https://github.com/bryanthaboi/gen1recomp/releases) and unzip it to:
 
-It came from the official `gen1recomp-0.1.75-windows.zip`, which ships a
-**fused** executable — `love.exe` with the game archive appended — so it runs
-its own embedded copy and ignores a `.love` on the command line.
-`setup-love.ps1` split the archive back off, leaving the exact LÖVE binary the
-game shipped with rather than whatever love2d.org serves today.
-
-To redo it after a version bump:
-
-```bash
-cd splitscreen; .\setup-love.ps1 -Zip <gen1recomp-*-windows.zip>
+```
+<this repo>\gen1recomp\
 ```
 
-### 2. Build the patched game
+That's where `play.ps1` looks first. Anywhere else works too — pass
+`-GameExe <path to gen1recomp.exe>`.
+
+### 2. First run: import your ROM once
 
 ```bash
-cd splitscreen; .\build.ps1
+cd splitscreen; .\install.ps1 -Players 1
 ```
-
-Reads the Android APK in the parent folder, injects the patch, and writes
-`gen1recomp-splitscreen.love`. Pass `-Source <file.love>` to build from a
-different release instead.
-
-Every edit is anchored and verified — if a future version moves things, the
-build fails naming the anchor rather than producing a broken package.
-
-### 3. First run: import your ROM once
 
 ```bash
-cd splitscreen; .\play.ps1 -Players 1
+.\play.ps1 -Players 1
 ```
 
-Import your ROM as usual, then quit. Install any mods now too, by dropping
-them into `%APPDATA%\LOVE\gen1recomp-p1\mods\` (your voxel mod folder goes
+Import your ROM as usual, then quit. Install any other mods now too, by
+dropping them into `%APPDATA%\gen1recomp-p1\mods\` (your voxel mod folder goes
 there whole).
 
-### 4. Copy that to the other players
+### 3. Set up the other players
 
 ```bash
-cd splitscreen; .\seed-players.ps1 -Players 2
+.\install.ps1 -Players 2
 ```
 
-Copies only ROM-derived cache and mods — never saves or settings — so nobody
-inherits anyone else's playthrough.
+Copies the three mods to every player, then copies player 1's ROM-derived cache
+to the rest — cache and mods only, never a save file and never `options.lua`,
+so nobody inherits anyone else's playthrough or settings.
 
-### 5. Play
+Safe to re-run any time you pull an update to these mods.
+
+### 4. Play
 
 ```bash
-cd splitscreen; .\play.ps1 -Players 2
+.\play.ps1 -Players 2 -Ghosts
 ```
 
 Plug in every controller **before** launching. Pad *N* is the *N*th pad in
@@ -95,12 +87,29 @@ SDL's order, normally the order they were connected.
 
 ---
 
+## Where things live
+
+The official build is **fused** — the game archive is appended to the
+executable — and LÖVE drops the `LOVE\` segment from the save path for fused
+games. So:
+
+```
+%APPDATA%\gen1recomp-p1\           <- saves, options, mods, ROM cache
+%APPDATA%\gen1recomp-p1\mods\      <- drop mod folders here
+```
+
+If you used an earlier version of this project, your data is at
+`%APPDATA%\LOVE\gen1recomp-p1\` instead — that setup ran the game through a
+standalone `love.exe`, which is not fused. `install.ps1` copies it across on
+first run and **leaves the original in place**, so nothing is at risk if that
+guess is wrong for your setup.
+
 ## How each player is isolated
 
 | | mechanism |
 | --- | --- |
-| Saves, settings, mods | `POKEPORT_IDENTITY=gen1recomp-pN` → own folder under `%APPDATA%\LOVE\` |
-| Controller | `POKEPORT_PAD=N` → only the *N*th pad |
+| Saves, settings, mods | `POKEPORT_IDENTITY=gen1recomp-pN` → own folder under `%APPDATA%\` |
+| Controller | `POKEPORT_PAD=N` → PAD_OWNER drops every other pad's events |
 | Keyboard | focused window only; `-KeyboardPlayerOne` makes P2+ pad-only |
 | Window | tiled 1×2 for two players, 2×2 for three or four |
 
@@ -116,7 +125,8 @@ instances on one identity would race over settings and the slot registry.
 .\play.ps1 -Players 4 -Game yellow      # red | blue | yellow
 .\play.ps1 -Players 2 -NoTile           # don't move windows
 .\play.ps1 -Players 2 -KeyboardPlayerOne
-.\play.ps1 -Players 2 -LoveExe "C:\Program Files\LOVE\love.exe"
+.\play.ps1 -Players 2 -GameExe "D:\games\gen1recomp\gen1recomp.exe"
+.\install.ps1 -Identity pokemon-love2d  # install into a normal single-player copy
 ```
 
 `POKEPORT_PAD` accepts `1`–`8`, `all` (default, stock behaviour), or `none`
@@ -127,35 +137,38 @@ leave someone unable to press Start.
 
 ## Known limits
 
+- **The launcher screen isn't filtered.** Mods don't load until a game boots,
+  so the version-select screen and the ROM importer see every pad. `play.ps1`
+  sets `POKEPORT_GAME` so each window boots straight past both; the one time
+  this bites is the very first run, before a ROM has been imported.
 - **Pad order is by SDL enumeration.** Each process enumerates independently.
   On one machine with a fixed set of pads this is consistent, but if two
-  instances ever disagree they could grab the same pad. Binding by "press A
-  on your controller" instead would be the robust fix.
+  instances ever disagree they could grab the same pad. Binding by "press A on
+  your controller" instead would be the robust fix.
 - **The link cable still works.** `src/link/` is untouched, so the instances
   can trade and battle each other over the network.
 - **Disk cost.** Each identity keeps its own ROM cache.
 
 ## What's been verified
 
-Tested on this machine against a real Xbox One controller:
+Against the **official unmodified `gen1recomp.exe` v0.1.75**, with the voxel
+mod installed alongside:
 
 | check | result |
 | --- | --- |
-| Patch applies | 12/12 anchors matched |
-| Archive is loadable | forward-slash entries, `main.lua` at root |
-| Patched game boots | no `lua-error.log`, assets loaded |
-| Two instances at once | both alive, tiled 2×1 |
-| `PadOwner` under LuaJIT | loads, `owns(nil)` safe |
-| `POKEPORT_PAD=1` | owns the Xbox pad |
-| `POKEPORT_PAD=2` | rejects it (correct — only one pad present) |
-| `POKEPORT_PAD=all` / `none` | owns / rejects |
-| `POKEPORT_PAD=banana` | falls back to `all` |
-| `SDL_JOYSTICK_ALLOW_BACKGROUND_EVENTS` | reads back as `1` |
-| `POKEPORT_IDENTITY` | p1/p2/p3 → three distinct save directories |
+| Wrapping a `love.*` callback from a mod reaches real dispatch | `handlers dispatch reached wrapper: true` |
+| Fused save directory | `%APPDATA%\<identity>`, measured not assumed |
+| `PAD_OWNER` unit suite (modes, ownership, hotplug, wrapping) | 72/72 |
+| In-game suite (load order, exports, live callbacks, dispatch) | 28/28 |
+| Inert with `POKEPORT_PAD` unset | 10/10 — registry never even created |
+| Both players boot with the voxel mod present | 0 loader errors, 9/9 callbacks wrapped |
+| `PAD_HOTKEYS` finds `PAD_OWNER` | resolved, not the legacy `src.core` path |
+| Two instances launched and tiled by `play.ps1` | 2×1, both booted straight into Red |
+| `SDL_JOYSTICK_ALLOW_BACKGROUND_EVENTS` | enabled in both processes |
 
-The one thing not verified is two people playing at once, which needs a second
-physical controller and a ROM. The routing logic underneath it is proven
-correct against real hardware.
+The one thing not verified here is two people playing at once, which needs a
+second physical controller. The routing underneath it is proven against real
+hardware and the filter is proven in the real engine.
 
 ---
 

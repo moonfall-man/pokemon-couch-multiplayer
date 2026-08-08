@@ -9,7 +9,9 @@
   "game_version": "0.0.0-dev || >=0.1.37 <2.0.0",
   "priority": 40,
   "dependencies": [],
-  "optional_dependencies": [],
+  "optional_dependencies": [
+    "PAD_OWNER"
+  ],
   "conflicts": [],
   "permissions": [
     "engine_internals"

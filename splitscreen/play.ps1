@@ -1,8 +1,12 @@
 <#
 .SYNOPSIS
-  Launch N copies of the patched game side by side, one controller each.
+  Launch N copies of the official game side by side, one controller each.
 
 .DESCRIPTION
+  Runs gen1recomp.exe straight from the release. Nothing is patched, unpacked
+  or rebuilt -- the split-screen behaviour comes from the PAD_OWNER mod, which
+  .\install.ps1 drops into each player's mods folder.
+
   Each player gets:
     * their own save directory  (POKEPORT_IDENTITY=gen1recomp-pN)
     * exactly one controller    (POKEPORT_PAD=N, the Nth pad in SDL order)
@@ -15,6 +19,9 @@
   .\play.ps1 -Players 2
 
 .EXAMPLE
+  .\play.ps1 -Players 2 -Ghosts
+
+.EXAMPLE
   .\play.ps1 -Players 4 -Game yellow
 #>
 [CmdletBinding()]
@@ -25,12 +32,11 @@ param(
   [ValidateSet("red", "blue", "yellow")]
   [string]$Game = "red",
 
-  [string]$LoveExe = "",
-  [string]$LovePackage = "",
+  [string]$GameExe = "",
   [switch]$NoTile,
   [switch]$KeyboardPlayerOne,
 
-  # Requires the GHOST_LINK mod installed in each player's mods folder.
+  # Ghost presence: see each other walking around your own world.
   # Player 1 hosts; everyone else joins them on localhost.
   [switch]$Ghosts,
   [int]$GhostPort = 7778
@@ -39,56 +45,67 @@ param(
 $ErrorActionPreference = "Stop"
 $root = Split-Path -Parent $MyInvocation.MyCommand.Path
 
-# ------------------------------------------------------------------ love.exe
-if ($LoveExe -eq "") {
+# ------------------------------------------------------------ gen1recomp.exe
+if ($GameExe -eq "") {
   $candidates = @(
-    (Join-Path $root "love\love.exe"),
-    (Join-Path $root "..\love\love.exe"),
-    "C:\Program Files\LOVE\love.exe",
-    "C:\Program Files (x86)\LOVE\love.exe"
+    (Join-Path $root "gen1recomp\gen1recomp.exe"),
+    (Join-Path $root "gen1recomp.exe"),
+    (Join-Path (Split-Path -Parent $root) "gen1recomp\gen1recomp.exe"),
+    (Join-Path (Split-Path -Parent $root) "gen1recomp-win64\gen1recomp.exe"),
+    (Join-Path $env:LOCALAPPDATA "Programs\gen1recomp\gen1recomp.exe")
   )
   foreach ($c in $candidates) {
-    if (Test-Path $c) { $LoveExe = (Resolve-Path $c).Path; break }
-  }
-  if ($LoveExe -eq "") {
-    $cmd = Get-Command love -ErrorAction SilentlyContinue
-    if ($null -ne $cmd) { $LoveExe = $cmd.Source }
+    if (Test-Path $c) { $GameExe = (Resolve-Path $c).Path; break }
   }
 }
-if ($LoveExe -eq "" -or -not (Test-Path $LoveExe)) {
+if ($GameExe -eq "" -or -not (Test-Path $GameExe)) {
   throw @"
-Could not find love.exe.
+Could not find gen1recomp.exe.
 
-Get it either way:
-  * Download gen1recomp-<version>-windows.zip from the project's releases and
-    unzip it to $root\love\  (it bundles love.exe and its DLLs), or
-  * Install LOVE 11.5 from https://love2d.org
+Download gen1recomp-<version>-windows.zip from the project's releases, unzip
+it, and either put the folder at:
 
-Then re-run, or pass -LoveExe <path to love.exe>.
+    $root\gen1recomp\
+
+or pass its path directly:
+
+    .\play.ps1 -Players $Players -GameExe "C:\path\to\gen1recomp.exe"
 "@
 }
 
-# --------------------------------------------------------------- .love file
-if ($LovePackage -eq "") { $LovePackage = Join-Path $root "gen1recomp-splitscreen.love" }
-if (-not (Test-Path $LovePackage)) {
-  throw "Patched package not found: $LovePackage`nRun .\build.ps1 first."
-}
-$LovePackage = (Resolve-Path $LovePackage).Path
-
-Write-Host "love    : $LoveExe"
-Write-Host "package : $LovePackage"
+Write-Host "game    : $GameExe"
 Write-Host "players : $Players ($Game)"
+
+# ------------------------------------------------------------------- checks
+#
+# Both of these are warnings rather than errors: the game still runs, it just
+# will not do what you asked. Saying so up front beats debugging a controller
+# that seems to drive both windows.
+$missingMods = @()
+$missingCache = @()
+for ($i = 1; $i -le $Players; $i++) {
+  $dir = Join-Path $env:APPDATA "gen1recomp-p$i"
+  if (-not (Test-Path (Join-Path $dir "mods\PAD_OWNER"))) { $missingMods += $i }
+  if (-not (Test-Path (Join-Path $dir "$Game\rom-cache.complete"))) { $missingCache += $i }
+}
+if ($missingMods.Count -gt 0) {
+  Write-Warning ("PAD_OWNER is not installed for player(s) {0} - every pad will drive every window. Run .\install.ps1 -Players {1}" -f ($missingMods -join ", "), $Players)
+}
+if ($missingCache.Count -gt 0) {
+  Write-Warning ("No $Game ROM cache for player(s) {0} - they will open the launcher and ask for a ROM instead of booting straight in." -f ($missingCache -join ", "))
+}
 Write-Host ""
 
 # ------------------------------------------------------------------- launch
 $saved = @{
-  PAD         = $env:POKEPORT_PAD
-  IDENTITY    = $env:POKEPORT_IDENTITY
-  KEYBOARD    = $env:POKEPORT_KEYBOARD
-  GHOST_HOST  = $env:POKEGHOST_HOST
-  GHOST_JOIN  = $env:POKEGHOST_JOIN
-  GHOST_PORT  = $env:POKEGHOST_PORT
-  GHOST_SPRITE= $env:POKEGHOST_SPRITE
+  PAD          = $env:POKEPORT_PAD
+  IDENTITY     = $env:POKEPORT_IDENTITY
+  KEYBOARD     = $env:POKEPORT_KEYBOARD
+  GAME         = $env:POKEPORT_GAME
+  GHOST_HOST   = $env:POKEGHOST_HOST
+  GHOST_JOIN   = $env:POKEGHOST_JOIN
+  GHOST_PORT   = $env:POKEGHOST_PORT
+  GHOST_SPRITE = $env:POKEGHOST_SPRITE
 }
 
 # Each player's ghost body, so you can tell each other apart on screen. These
@@ -101,6 +118,12 @@ try {
   for ($i = 1; $i -le $Players; $i++) {
     $env:POKEPORT_PAD      = "$i"
     $env:POKEPORT_IDENTITY = "gen1recomp-p$i"
+
+    # Boot straight into the game rather than the launcher. This is not just
+    # convenience: mods do not load until a game boots, so the launcher screen
+    # is the one place PAD_OWNER cannot filter anything. Skipping it means
+    # every screen a player sees is already one-pad-per-window.
+    $env:POKEPORT_GAME = $Game
 
     # Keys only ever reach the focused window, so the keyboard is already
     # exclusive. -KeyboardPlayerOne makes that explicit: everyone but P1 is
@@ -130,9 +153,7 @@ try {
       $ghostNote += " as $($env:POKEGHOST_SPRITE)"
     }
 
-    $p = Start-Process -FilePath $LoveExe `
-                       -ArgumentList @($LovePackage, "--game=$Game") `
-                       -PassThru
+    $p = Start-Process -FilePath $GameExe -PassThru
     $procs += $p
     Write-Host ("  player {0}: pid {1}, pad #{0}, saves in gen1recomp-p{0}{2}" -f $i, $p.Id, $ghostNote)
     Start-Sleep -Milliseconds 700
@@ -141,6 +162,7 @@ try {
   $env:POKEPORT_PAD      = $saved.PAD
   $env:POKEPORT_IDENTITY = $saved.IDENTITY
   $env:POKEPORT_KEYBOARD = $saved.KEYBOARD
+  $env:POKEPORT_GAME     = $saved.GAME
   $env:POKEGHOST_HOST    = $saved.GHOST_HOST
   $env:POKEGHOST_JOIN    = $saved.GHOST_JOIN
   $env:POKEGHOST_PORT    = $saved.GHOST_PORT
