@@ -45,3 +45,10 @@ __pycache__/
 # Built by tools/package.ps1 and attached to a GitHub release; no reason to
 # carry the same bytes in history as well.
 dist/
+
+# The pre-conversion patched build. It was an emergency escape hatch, and
+# keeping it around meant two play.ps1 scripts pointed at two different sets of
+# save profiles -- which is exactly the confusion it was supposed to end.
+# Rebuild it from commit 49136ba if it is ever needed again.
+splitscreen-legacy/
+*/love/
