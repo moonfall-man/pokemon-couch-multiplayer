@@ -1,0 +1,75 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Couch multiplayer for gen1recomp</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<style>
+  :root { color-scheme: light dark; }
+  body {
+    font: 16px/1.6 system-ui, -apple-system, "Segoe UI", sans-serif;
+    max-width: 44rem; margin: 3rem auto; padding: 0 1.25rem;
+  }
+  code, pre { font-family: ui-monospace, "Cascadia Code", Consolas, monospace; }
+  pre {
+    background: color-mix(in srgb, currentColor 8%, transparent);
+    padding: .75rem 1rem; border-radius: .5rem; overflow-x: auto;
+  }
+  code { background: color-mix(in srgb, currentColor 8%, transparent);
+         padding: .1rem .35rem; border-radius: .25rem; }
+  pre code { background: none; padding: 0; }
+  table { border-collapse: collapse; width: 100%; margin: 1rem 0; }
+  th, td { text-align: left; padding: .5rem .6rem; vertical-align: top;
+           border-bottom: 1px solid color-mix(in srgb, currentColor 15%, transparent); }
+  .muted { opacity: .7; font-size: .9rem; }
+</style>
+
+<h1>Couch multiplayer for gen1recomp</h1>
+
+<p>Three mods for
+<a href="https://github.com/bryanthaboi/gen1recomp">gen1recomp</a>.
+Play side by side on one screen, or see each other across a LAN.</p>
+
+<h2>Install from inside the game</h2>
+
+<p><strong>MODS → Find mods → add an index</strong>, and paste:</p>
+
+<pre><code>moonfall-man/pokemon-couch-multiplayer</code></pre>
+
+<p>All three appear; install what you want, and they update themselves
+afterwards. The game ships with no index sources on purpose — adding one is a
+deliberate act of trusting whoever publishes it.</p>
+
+<p class="muted">Prefer not to trust a feed? Use <strong>MODS → Import mod
+.zip</strong> with a file from
+<a href="https://github.com/moonfall-man/pokemon-couch-multiplayer/releases">Releases</a>,
+or drag it onto the window. Same installer either way.</p>
+
+<h2>What's in here</h2>
+
+<table>
+  <tr><th>PAD_OWNER</th><td>One controller per window — the piece that makes
+    split screen possible at all. Completely inert unless
+    <code>POKEPORT_PAD</code> is set, so it is safe to leave installed when
+    playing alone.</td></tr>
+  <tr><th>GHOST_LINK</th><td>See the other players walking around
+    <em>your</em> world, with their Pokémon hovering behind them. Presence
+    only: nothing about your save is shared, and no ghost can block you.</td></tr>
+  <tr><th>PAD_HOTKEYS</th><td>Reach the display hotkeys from a controller
+    instead of the keyboard.</td></tr>
+</table>
+
+<h2>You supply the ROM</h2>
+
+<p><strong>Nothing here contains game data.</strong> The follower sprites are
+generated on first boot from the art the game already extracted from your own
+cartridge dump, and they live in your save folder. Nothing is downloaded and
+nothing is redistributed.</p>
+
+<p>GHOST_LINK stays off unless <code>POKEGHOST_HOST</code> or
+<code>POKEGHOST_JOIN</code> is set — installing it never opens a socket on its
+own.</p>
+
+<p class="muted">MIT licensed —
+<a href="https://github.com/moonfall-man/pokemon-couch-multiplayer">source on
+GitHub</a>. This grants you nothing regarding Pokémon, which is
+Nintendo/Creatures/GAME FREAK's, and is not affiliated with or endorsed by
+them.</p>
