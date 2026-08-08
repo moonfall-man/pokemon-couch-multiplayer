@@ -18,6 +18,12 @@
 #   ./install.sh -p 2
 #   ./install.sh -i pokemon-love2d      one ordinary single-player copy
 #   ./install.sh -p 2 -f                overwrite an existing ROM cache
+#   ./install.sh -p 2 -m pokemon-love2d also copy every OTHER mod from that
+#                                       profile out to each player -- the
+#                                       "install it in the game, then run
+#                                       this" flow
+#   ./install.sh -p 2 -m pokemon-love2d -x DRAMATIC_SHAPE
+#                                       ...but leave that one out
 set -euo pipefail
 
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -26,11 +32,15 @@ REPO="$(cd "$HERE/../.." && pwd)"
 PLAYERS=2
 IDENTITY=""
 FORCE=0
+MIRROR_FROM=""
+EXCEPT=""
 
-while getopts "p:i:fh" opt; do
+while getopts "p:i:m:x:fh" opt; do
   case "$opt" in
     p) PLAYERS="$OPTARG" ;;
     i) IDENTITY="$OPTARG" ;;
+    m) MIRROR_FROM="${OPTARG:-pokemon-love2d}" ;;
+    x) EXCEPT="$EXCEPT $OPTARG" ;;
     f) FORCE=1 ;;
     h) sed -n '2,21p' "$0"; exit 0 ;;
     *) exit 2 ;;
@@ -82,6 +92,56 @@ for id in "${IDS[@]}"; do
     echo "    + $m"
   done
 done
+
+# --------------------------------------------------------------- mirror
+#
+# Our three always come from the repo above -- that is the copy the scripts
+# test against. Everything ELSE comes from the source profile, which is where
+# the game's own MODS panel installs things.
+#
+# MERGE, never prune: a player profile legitimately has mods the source does
+# not, and deleting somebody's mod because another folder lacked it is not a
+# trade worth making.
+if [ -n "$MIRROR_FROM" ]; then
+  src_mods="$(savedir "$MIRROR_FROM")/mods"
+  echo ""
+  if [ ! -d "$src_mods" ]; then
+    echo "Nothing to mirror: $src_mods does not exist." >&2
+  else
+    copied_names=""
+    for d in "$src_mods"/*/; do
+      [ -d "$d" ] || continue
+      name="$(basename "$d")"
+      [ -f "$d/manifest.json" ] || continue
+      case " PAD_OWNER PAD_HOTKEYS GHOST_LINK $EXCEPT " in
+        *" $name "*) continue ;;
+      esac
+      copied_names="$copied_names $name"
+    done
+
+    [ -n "$EXCEPT" ] && echo "Mirror: skipping$EXCEPT"
+
+    if [ -z "$copied_names" ]; then
+      echo "Mirror: $MIRROR_FROM has no other mods to copy."
+    else
+      echo "Mirroring from $MIRROR_FROM:$copied_names"
+      for id in "${IDS[@]}"; do
+        [ "$id" = "$MIRROR_FROM" ] && continue
+        dest="$(savedir "$id")/mods"
+        mkdir -p "$dest"
+        n=0
+        for name in $copied_names; do
+          rm -rf "$dest/$name"
+          cp -r "$src_mods/$name" "$dest/$name"
+          [ -f "$dest/$name/manifest.json" ] || {
+            echo "Copied $name to $dest but manifest.json is not there." >&2; exit 1; }
+          n=$((n + 1))
+        done
+        echo "    $id -> $n mod(s)"
+      done
+    fi
+  fi
+fi
 
 # ------------------------------------------------------------- ROM cache
 if [ -z "$IDENTITY" ] && [ "$PLAYERS" -ge 2 ]; then

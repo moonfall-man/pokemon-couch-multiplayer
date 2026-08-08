@@ -140,9 +140,28 @@ Prefer not to trust a feed? **MODS → Import mod .zip**, or drag a
 trust it wouldn't otherwise have.
 
 **One catch for split screen:** mods install into *the current save folder*,
-and each player has their own. So either each player installs once in their
-own window, or you let `splitscreen\play.ps1` do it — it copies the mods to
-every player and won't launch a session where they're missing.
+and each player has their own. The launcher's Play button uses
+`pokemon-love2d`, so a GUI install never reaches the per-player profiles by
+itself.
+
+Install whatever you like through the game, then mirror it out:
+
+```bash
+cd splitscreen; .\install.ps1 -Players 2 -Mirror
+```
+
+That copies every mod from `pokemon-love2d` to each player. It **merges and
+never prunes** — a player profile keeps mods the source doesn't have — and a
+plain `install.ps1` run tells you when there's something worth mirroring.
+
+Two mods can be individually fine and still refuse to share a game: the
+original voxel mod and its battle-art fork both claim the `voxel` render
+pipeline, so whichever loads second fails outright. Nothing in a manifest
+declares that, so there's an escape hatch:
+
+```bash
+.\install.ps1 -Players 2 -Mirror -Except DRAMATIC_SHAPE
+```
 
 ### Installing by hand
 

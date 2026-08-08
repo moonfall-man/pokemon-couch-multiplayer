@@ -45,6 +45,25 @@ param(
   # "pokemon-love2d" is what the official build uses when nothing overrides it.
   [string]$Identity = "",
 
+  # Copy every OTHER mod from a source profile out to each player.
+  #
+  # This is the "install it in the game, then run install" flow: the launcher's
+  # own MODS panel installs into whichever profile it is running as -- normally
+  # pokemon-love2d -- so a GUI install never reaches the per-player profiles on
+  # its own. Rather than teach people to repeat it four times, mirror it.
+  [switch]$Mirror,
+  [string]$MirrorFrom = "",
+
+  # Mods to leave out of the mirror.
+  #
+  # Two mods can be perfectly valid on their own and still refuse to coexist:
+  # DRAMATIC_SHAPE and BATTLE_ART_VOXEL_FORK are the same mod, original and
+  # fork, and both claim the "voxel" render pipeline -- so whichever loads
+  # second fails with "render_pipelines already registered". Nothing in a
+  # manifest declares that, and no amount of copying files can detect it, so
+  # this is the escape hatch.
+  [string[]]$Except = @(),
+
   [switch]$Force
 )
 
@@ -128,6 +147,57 @@ foreach ($id in $identities) {
   }
 }
 
+# ------------------------------------------------------------------- mirror
+#
+# Our three always come from the repo above -- that is the copy the scripts
+# test against, and letting a stale GUI-installed copy overwrite it would make
+# "I updated the mod" quietly untrue. Everything ELSE comes from the source
+# profile, which is where the launcher's MODS panel puts things.
+#
+# MERGE, never prune. A player profile legitimately has mods the source does
+# not (the voxel fork lives in the per-player profiles here), and silently
+# deleting somebody's mod because it was missing from another folder is not a
+# trade worth making. Uninstalling stays a deliberate act.
+if ($Mirror -or $MirrorFrom -ne "") {
+  if ($MirrorFrom -eq "") { $MirrorFrom = "pokemon-love2d" }
+  $srcMods = Join-Path (Get-SaveDir $MirrorFrom) "mods"
+
+  Write-Host ""
+  if (-not (Test-Path $srcMods)) {
+    Write-Warning "Nothing to mirror: $srcMods does not exist."
+  } else {
+    $others = Get-ChildItem -Path $srcMods -Directory |
+              Where-Object { $MODS -notcontains $_.Name } |
+              Where-Object { $Except -notcontains $_.Name } |
+              Where-Object { Test-Path (Join-Path $_.FullName "manifest.json") }
+
+    if ($Except.Count -gt 0) {
+      Write-Host ("Mirror: skipping {0}" -f ($Except -join ", ")) -ForegroundColor DarkGray
+    }
+
+    if ($others.Count -eq 0) {
+      Write-Host "Mirror: $MirrorFrom has no other mods to copy."
+    } else {
+      Write-Host ("Mirroring from {0}: {1}" -f $MirrorFrom,
+        (($others | ForEach-Object { $_.Name }) -join ", "))
+      foreach ($id in $identities) {
+        if ($id -eq $MirrorFrom) { continue }
+        $destMods = Join-Path (Get-SaveDir $id) "mods"
+        New-Item -ItemType Directory -Path $destMods -Force | Out-Null
+        foreach ($o in $others) {
+          $to = Join-Path $destMods $o.Name
+          if (Test-Path $to) { Remove-Item $to -Recurse -Force }
+          Copy-Item -Path $o.FullName -Destination $to -Recurse -Force
+          if (-not (Test-Path (Join-Path $to "manifest.json"))) {
+            throw "Copied $($o.Name) to $to but manifest.json is not there."
+          }
+        }
+        Write-Host ("    {0} -> {1} mod(s)" -f $id, $others.Count)
+      }
+    }
+  }
+}
+
 # --------------------------------------------------------------- ROM cache
 #
 # Only when there is more than one player, and only from player 1.
@@ -182,6 +252,31 @@ if ($Identity -eq "" -and $Players -ge 2) {
       } else {
         Write-Host "    player $i : already has a cache (use -Force to replace)"
       }
+    }
+  }
+}
+
+# ------------------------------------------------------------- discoverable
+#
+# A mod installed through the game's own MODS panel lands in whichever profile
+# the launcher was running as, and nothing about that says "your other players
+# did not get this". Say it here, where somebody is already looking.
+if (-not $Mirror -and $MirrorFrom -eq "" -and $Identity -eq "") {
+  $launcherMods = Join-Path (Get-SaveDir "pokemon-love2d") "mods"
+  if (Test-Path $launcherMods) {
+    $p1Mods = Join-Path (Get-SaveDir "gen1recomp-p1") "mods"
+    $have = @()
+    if (Test-Path $p1Mods) {
+      $have = (Get-ChildItem $p1Mods -Directory | ForEach-Object { $_.Name })
+    }
+    $extra = Get-ChildItem $launcherMods -Directory |
+             Where-Object { $MODS -notcontains $_.Name -and $have -notcontains $_.Name } |
+             ForEach-Object { $_.Name }
+    if ($extra.Count -gt 0) {
+      Write-Host ""
+      Write-Host ("Note: pokemon-love2d has {0} mod(s) your players do not: {1}" `
+        -f $extra.Count, ($extra -join ", ")) -ForegroundColor Yellow
+      Write-Host "      Copy them across with:  .\install.ps1 -Players $Players -Mirror"
     }
   }
 }
