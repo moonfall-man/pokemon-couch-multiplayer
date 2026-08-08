@@ -1,0 +1,120 @@
+{
+    "schema_version":  1,
+    "generated_at":  "2026-08-08T03:06:01Z",
+    "categories":  [
+                       "CONTROLS",
+                       "MULTIPLAYER"
+                   ],
+    "mods":  [
+                 {
+                     "id":  "PAD_OWNER",
+                     "folder":  "PAD_OWNER",
+                     "title":  "PAD OWNER",
+                     "author":  "moonfall-man",
+                     "version":  "0.1.0",
+                     "summary":  "One controller per window -- the missing piece for split screen.",
+                     "categories":  [
+                                        "CONTROLS"
+                                    ],
+                     "tags":  [
+                                  "controls",
+                                  "splitscreen",
+                                  "multiplayer",
+                                  "couch",
+                                  "gamepad"
+                              ],
+                     "license":  "MIT",
+                     "repo":  "https://github.com/moonfall-man/pokemon-couch-multiplayer",
+                     "github":  "moonfall-man/pokemon-couch-multiplayer",
+                     "downloadURL":  "https://github.com/moonfall-man/pokemon-couch-multiplayer/releases/download/v0.1.0/PAD_OWNER-0.1.0.zip",
+                     "api":  2,
+                     "game_version":  "0.0.0-dev || \u003e=0.1.37 \u003c2.0.0",
+                     "profile":  "content",
+                     "affects_link":  false,
+                     "permissions":  [
+                                         "engine_internals"
+                                     ],
+                     "dependencies":  [
+
+                                      ],
+                     "conflicts":  [
+
+                                   ],
+                     "description_url":  "https://github.com/moonfall-man/pokemon-couch-multiplayer/blob/master/PAD_OWNER/README.md"
+                 },
+                 {
+                     "id":  "PAD_HOTKEYS",
+                     "folder":  "PAD_HOTKEYS",
+                     "title":  "PAD HOTKEYS",
+                     "author":  "moonfall-man",
+                     "version":  "0.1.0",
+                     "summary":  "Reach the display hotkeys from a controller instead of the keyboard.",
+                     "categories":  [
+                                        "CONTROLS"
+                                    ],
+                     "tags":  [
+                                  "controls",
+                                  "gamepad",
+                                  "couch",
+                                  "accessibility",
+                                  "display"
+                              ],
+                     "license":  "MIT",
+                     "repo":  "https://github.com/moonfall-man/pokemon-couch-multiplayer",
+                     "github":  "moonfall-man/pokemon-couch-multiplayer",
+                     "downloadURL":  "https://github.com/moonfall-man/pokemon-couch-multiplayer/releases/download/v0.1.0/PAD_HOTKEYS-0.1.0.zip",
+                     "api":  2,
+                     "game_version":  "0.0.0-dev || \u003e=0.1.37 \u003c2.0.0",
+                     "profile":  "content",
+                     "affects_link":  false,
+                     "permissions":  [
+                                         "engine_internals"
+                                     ],
+                     "dependencies":  [
+
+                                      ],
+                     "conflicts":  [
+
+                                   ],
+                     "description_url":  "https://github.com/moonfall-man/pokemon-couch-multiplayer/blob/master/PAD_HOTKEYS/README.md"
+                 },
+                 {
+                     "id":  "GHOST_LINK",
+                     "folder":  "GHOST_LINK",
+                     "title":  "GHOST LINK",
+                     "author":  "moonfall-man",
+                     "version":  "0.1.0",
+                     "summary":  "See the other players walking around your own world -- presence only, nothing shared.",
+                     "categories":  [
+                                        "MULTIPLAYER"
+                                    ],
+                     "tags":  [
+                                  "multiplayer",
+                                  "presence",
+                                  "ghosts",
+                                  "co-op",
+                                  "followers",
+                                  "network"
+                              ],
+                     "license":  "MIT",
+                     "repo":  "https://github.com/moonfall-man/pokemon-couch-multiplayer",
+                     "github":  "moonfall-man/pokemon-couch-multiplayer",
+                     "downloadURL":  "https://github.com/moonfall-man/pokemon-couch-multiplayer/releases/download/v0.1.0/GHOST_LINK-0.1.0.zip",
+                     "api":  2,
+                     "game_version":  "0.0.0-dev || \u003e=0.1.37 \u003c2.0.0",
+                     "profile":  "content",
+                     "affects_link":  false,
+                     "permissions":  [
+                                         "network",
+                                         "engine_internals"
+                                     ],
+                     "dependencies":  [
+
+                                      ],
+                     "conflicts":  [
+
+                                   ],
+                     "description_url":  "https://github.com/moonfall-man/pokemon-couch-multiplayer/blob/master/GHOST_LINK/README.md"
+                 }
+             ]
+}

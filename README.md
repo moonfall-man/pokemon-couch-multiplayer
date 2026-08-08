@@ -118,6 +118,32 @@ Longer versions, per platform:
 - **[GHOST_LINK/README.md](GHOST_LINK/README.md)** — the presence mod
 - **[PAD_HOTKEYS/README.md](PAD_HOTKEYS/README.md)** — controller hotkeys
 
+### Installing from inside the game
+
+The engine has its own mod manager, and it is the least painful route on a
+fresh machine — no scripts, no folders, and it updates itself afterwards.
+
+**MODS → Find mods → add an index**, and paste:
+
+```
+moonfall-man/pokemon-couch-multiplayer
+```
+
+All three mods appear; install the ones you want. The game ships with **no**
+index sources on purpose — adding one is a deliberate act of trusting whoever
+publishes it — so this is a one-time paste rather than something that is just
+there.
+
+Prefer not to trust a feed? **MODS → Import mod .zip**, or drag a
+[release](https://github.com/moonfall-man/pokemon-couch-multiplayer/releases)
+`.zip` onto the window. Same installer either way; a listing buys a mod no
+trust it wouldn't otherwise have.
+
+**One catch for split screen:** mods install into *the current save folder*,
+and each player has their own. So either each player installs once in their
+own window, or you let `splitscreen\play.ps1` do it — it copies the mods to
+every player and won't launch a session where they're missing.
+
 ### Installing by hand
 
 The scripts are convenience, not magic. All they do is copy folders:

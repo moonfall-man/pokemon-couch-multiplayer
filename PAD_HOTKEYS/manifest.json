@@ -3,6 +3,7 @@
   "name": "PAD HOTKEYS",
   "version": "0.1.0",
   "api": 2,
+  "github": "moonfall-man/pokemon-couch-multiplayer",
   "entry": "main.lua",
   "profile": "content",
   "category": "CONTROLS",

@@ -40,3 +40,8 @@ desktop.ini
 *.tmp
 __pycache__/
 *.pyc
+
+# ----------------------------------------------------------------- packaging
+# Built by tools/package.ps1 and attached to a GitHub release; no reason to
+# carry the same bytes in history as well.
+dist/
