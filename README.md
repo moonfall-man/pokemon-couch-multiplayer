@@ -118,6 +118,23 @@ Longer versions, per platform:
 - **[GHOST_LINK/README.md](GHOST_LINK/README.md)** — the presence mod
 - **[PAD_HOTKEYS/README.md](PAD_HOTKEYS/README.md)** — controller hotkeys
 
+### Double-click launchers
+
+If you'd rather not type anything, drop these in the repo root. They're
+gitignored — one line each, and they only wrap the scripts below:
+
+```bat
+@echo off
+REM play_2.bat -- two players, split screen, ghosts on
+cd /d "%~dp0splitscreen"
+powershell -NoProfile -ExecutionPolicy Bypass -File ".\play.ps1" -Players 2 -Ghosts
+if errorlevel 1 pause
+```
+
+Make one per player count (`play_1.bat` … `play_4.bat`, changing `-Players`),
+and an `install.bat` that runs `install.ps1` the same way. Keep the `pause` —
+without it a failure closes the window before you can read why.
+
 ### Installing from inside the game
 
 The engine has its own mod manager, and it is the least painful route on a

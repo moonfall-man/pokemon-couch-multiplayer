@@ -53,3 +53,10 @@ dist/
 splitscreen-legacy/
 */love/
 pokemon-profile-backup/
+
+# ------------------------------------------------------------------ shortcuts
+# Double-click launchers generated for this machine. They only wrap
+# splitscreen\play.ps1 and install.ps1, so there is nothing here worth carrying
+# in history -- and their paths are local.
+/play_*.bat
+/install.bat
