@@ -81,15 +81,49 @@ Write-Host "players : $Players ($Game)"
 # Both of these are warnings rather than errors: the game still runs, it just
 # will not do what you asked. Saying so up front beats debugging a controller
 # that seems to drive both windows.
-$missingMods = @()
+function Get-MissingMods([int]$n) {
+  $missing = @()
+  for ($i = 1; $i -le $n; $i++) {
+    $dir = Join-Path $env:APPDATA "gen1recomp-p$i"
+    foreach ($m in @("PAD_OWNER", "PAD_HOTKEYS", "GHOST_LINK")) {
+      if (-not (Test-Path (Join-Path $dir "mods\$m\manifest.json"))) {
+        $missing += "p${i}:$m"
+      }
+    }
+  }
+  return $missing
+}
+
+# INSTALL THE MODS IF THEY ARE NOT THERE, rather than telling you to.
+#
+# A missing PAD_OWNER is silent in the worst possible way: the game launches,
+# both windows work, and every pad drives every window -- which reads as "the
+# controller filter is broken" rather than "the controller filter is absent".
+# It cost an evening once. Warning about it was not enough; a launcher that
+# can see the problem should fix the problem.
+$missingMods = Get-MissingMods $Players
+if ($missingMods.Count -gt 0) {
+  Write-Host ("Mods missing ({0}) - installing them now..." -f ($missingMods -join ", ")) -ForegroundColor Yellow
+  & (Join-Path $root "install.ps1") -Players $Players | Out-Null
+
+  $missingMods = Get-MissingMods $Players
+  if ($missingMods.Count -gt 0) {
+    throw @"
+Could not install: $($missingMods -join ', ')
+
+Without PAD_OWNER every controller drives every window, so this stops rather
+than launching a session that cannot work. Try running it directly to see why:
+
+    .\install.ps1 -Players $Players
+"@
+  }
+  Write-Host "Mods installed." -ForegroundColor Green
+}
+
 $missingCache = @()
 for ($i = 1; $i -le $Players; $i++) {
   $dir = Join-Path $env:APPDATA "gen1recomp-p$i"
-  if (-not (Test-Path (Join-Path $dir "mods\PAD_OWNER"))) { $missingMods += $i }
   if (-not (Test-Path (Join-Path $dir "$Game\rom-cache.complete"))) { $missingCache += $i }
-}
-if ($missingMods.Count -gt 0) {
-  Write-Warning ("PAD_OWNER is not installed for player(s) {0} - every pad will drive every window. Run .\install.ps1 -Players {1}" -f ($missingMods -join ", "), $Players)
 }
 if ($missingCache.Count -gt 0) {
   Write-Warning ("No $Game ROM cache for player(s) {0} - they will open the launcher and ask for a ROM instead of booting straight in." -f ($missingCache -join ", "))

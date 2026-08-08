@@ -88,17 +88,41 @@ echo "players : $PLAYERS ($GAME)"
 #
 # Warnings, not errors: the game still runs, it just will not do what you
 # asked. Saying so up front beats debugging a pad that drives both windows.
-missing_mods=""
+missing_mods() {
+  local out="" i m d
+  for i in $(seq 1 "$PLAYERS"); do
+    d="$(savedir "gen1recomp-p$i")"
+    for m in PAD_OWNER PAD_HOTKEYS GHOST_LINK; do
+      [ -f "$d/mods/$m/manifest.json" ] || out="$out p$i:$m"
+    done
+  done
+  echo "$out"
+}
+
+# INSTALL THE MODS IF THEY ARE NOT THERE, rather than telling you to.
+#
+# A missing PAD_OWNER is silent in the worst possible way: the game launches,
+# both windows work, and every pad drives every window -- which reads as "the
+# filter is broken" rather than "the filter is absent".
+gone="$(missing_mods)"
+if [ -n "$gone" ]; then
+  echo "Mods missing ($gone) -- installing them now..."
+  "$HERE/install.sh" -p "$PLAYERS" >/dev/null
+  gone="$(missing_mods)"
+  if [ -n "$gone" ]; then
+    echo "Could not install:$gone" >&2
+    echo "Without PAD_OWNER every controller drives every window, so this stops" >&2
+    echo "rather than launching a session that cannot work. Try: ./install.sh -p $PLAYERS" >&2
+    exit 1
+  fi
+  echo "Mods installed."
+fi
+
 missing_cache=""
 for i in $(seq 1 "$PLAYERS"); do
   d="$(savedir "gen1recomp-p$i")"
-  [ -d "$d/mods/PAD_OWNER" ] || missing_mods="$missing_mods $i"
   [ -f "$d/$GAME/rom-cache.complete" ] || missing_cache="$missing_cache $i"
 done
-if [ -n "$missing_mods" ]; then
-  echo "WARNING: PAD_OWNER is not installed for player(s)$missing_mods --" >&2
-  echo "         every pad will drive every window. Run ./install.sh -p $PLAYERS" >&2
-fi
 if [ -n "$missing_cache" ]; then
   echo "WARNING: no $GAME ROM cache for player(s)$missing_cache -- they will open" >&2
   echo "         the launcher and ask for a ROM instead of booting straight in." >&2

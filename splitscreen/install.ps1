@@ -116,6 +116,14 @@ foreach ($id in $identities) {
     $to = Join-Path $modsDir $m
     if (Test-Path $to) { Remove-Item $to -Recurse -Force }
     Copy-Item -Path (Join-Path $repo $m) -Destination $to -Recurse -Force
+
+    # Verify rather than assume. A mod folder without its manifest is not a
+    # mod -- the loader skips it silently, and for PAD_OWNER that means every
+    # controller drives every window with nothing anywhere saying why.
+    $manifest = Join-Path $to "manifest.json"
+    if (-not (Test-Path $manifest)) {
+      throw "Copied $m to $to but manifest.json is not there. Is the game still running, or is something locking that folder?"
+    }
     Write-Host "    + $m"
   }
 }
