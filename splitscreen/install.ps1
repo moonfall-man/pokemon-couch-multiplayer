@@ -1,69 +1,70 @@
 <#
 .SYNOPSIS
-  Install the couch-multiplayer mods into each player's game folder.
+  Make each split-screen player a clone of your normal game.
 
 .DESCRIPTION
-  Nothing is patched and nothing is rebuilt. This copies three mod folders
-  into the save directories the official gen1recomp.exe already reads, exactly
-  the way you would install the voxel mod by hand:
+  ONE PROFILE IS THE SOURCE OF TRUTH, and it is the one the launcher's PLAY
+  button uses: %APPDATA%\pokemon-love2d. Install whatever you like there --
+  through the game's own MODS panel, which is the pleasant way to do it -- and
+  this copies that exact set out to every player.
 
-      %APPDATA%\gen1recomp-p1\mods\PAD_OWNER\
-      %APPDATA%\gen1recomp-p1\mods\PAD_HOTKEYS\
-      %APPDATA%\gen1recomp-p1\mods\GHOST_LINK\
+      pokemon-love2d\mods\   ---->   gen1recomp-p1\mods\
+                                     gen1recomp-p2\mods\
+                                     gen1recomp-p3\mods\
+                                     gen1recomp-p4\mods\
 
-  It also does the two setup chores nobody should have to do by hand:
+  Players MATCH the source rather than accumulate. A mod sitting in a player
+  profile that is not in the source is removed, and that is the point rather
+  than a side effect: an evening went into a split screen that rendered flat
+  because BATTLE_ART_VOXEL_FORK had reappeared alongside DRAMATIC_SHAPE. Both
+  register the "voxel" render pipeline, so whichever loses the race fails with
+  "render_pipelines already registered" -- and which one loses can differ per
+  launch. Nothing in a manifest declares that two mods cannot coexist, so the
+  only defence is that the players hold exactly the set you actually play.
+  Pass -NoPrune to merge instead.
 
-    * MIGRATION. Earlier versions of this project ran the game through a
-      standalone love.exe, which is not "fused" and therefore saved under
-      %APPDATA%\LOVE\<identity>. The official build IS fused and saves under
-      %APPDATA%\<identity> -- a different folder, so an existing playthrough
-      would look like it had vanished. If the old folder exists and the new
-      one does not, its contents are COPIED across. The original is never
-      touched, so nothing is at risk if this guesses wrong.
+  Settings come across too (-KeepSettings opts out), because the same evening
+  ended with the players rendering flat while PLAY rendered fine on identical
+  mods -- the difference was in options.lua, not in mods\. Only the display
+  and mod-settings blocks are copied. Save slots, the active save and the
+  player's name are per player and are never touched.
 
-    * ROM CACHE SEEDING. Each player is a separate identity, so each would
-      otherwise be asked for the ROM on first boot and each would build its
-      own copy of the extracted assets. Player 1's cache is copied to the
-      others -- cache and mods only, never a save file and never options.lua,
-      so nobody inherits anyone else's playthrough or settings.
+  Also handled, so nobody does it by hand:
 
-  Safe to re-run. Existing data is left alone unless -Force says otherwise.
+    * OUR THREE MODS come from this checkout, not from the source profile, so
+      "I updated the mod" stays true after a pull.
+    * ROM CACHE seeding, so only one person imports the cartridge.
+    * MIGRATION from %APPDATA%\LOVE\<identity>, where a pre-fused-build setup
+      kept its saves. Copied, never moved.
+
+  Safe to re-run, and it backs up any options.lua it edits.
 
 .EXAMPLE
-  .\install.ps1 -Players 2
+  .\install.ps1
+  Set up four players from pokemon-love2d.
+
+.EXAMPLE
+  .\install.ps1 -Players 2 -NoPrune
+  Two players, and leave mods the source does not have in place.
 
 .EXAMPLE
   .\install.ps1 -Identity pokemon-love2d
-  Install into an ordinary single-player copy of the game instead.
+  Install only our three mods into an ordinary single-player copy.
 #>
 [CmdletBinding()]
 param(
   [ValidateRange(1, 4)]
-  [int]$Players = 2,
+  [int]$Players = 4,
 
-  # Install into one named identity instead of gen1recomp-p1..pN.
-  # "pokemon-love2d" is what the official build uses when nothing overrides it.
+  # Where the player profiles are cloned FROM. The launcher's PLAY button uses
+  # pokemon-love2d unless POKEPORT_IDENTITY overrides it.
+  [string]$Source = "pokemon-love2d",
+
+  # Install only our three mods into one named identity and do nothing else.
   [string]$Identity = "",
 
-  # Copy every OTHER mod from a source profile out to each player.
-  #
-  # This is the "install it in the game, then run install" flow: the launcher's
-  # own MODS panel installs into whichever profile it is running as -- normally
-  # pokemon-love2d -- so a GUI install never reaches the per-player profiles on
-  # its own. Rather than teach people to repeat it four times, mirror it.
-  [switch]$Mirror,
-  [string]$MirrorFrom = "",
-
-  # Mods to leave out of the mirror.
-  #
-  # Two mods can be perfectly valid on their own and still refuse to coexist:
-  # DRAMATIC_SHAPE and BATTLE_ART_VOXEL_FORK are the same mod, original and
-  # fork, and both claim the "voxel" render pipeline -- so whichever loads
-  # second fails with "render_pipelines already registered". Nothing in a
-  # manifest declares that, and no amount of copying files can detect it, so
-  # this is the escape hatch.
-  [string[]]$Except = @(),
-
+  [switch]$NoPrune,
+  [switch]$KeepSettings,
   [switch]$Force
 )
 
@@ -71,7 +72,7 @@ $ErrorActionPreference = "Stop"
 $root = Split-Path -Parent $MyInvocation.MyCommand.Path
 $repo = Split-Path -Parent $root
 
-# The mods, in load order. PAD_OWNER first because PAD_HOTKEYS asks it which
+# Ours, in load order. PAD_OWNER first because PAD_HOTKEYS asks it which
 # controller this window owns.
 $MODS = @("PAD_OWNER", "PAD_HOTKEYS", "GHOST_LINK")
 
@@ -90,201 +91,231 @@ function Get-LegacySaveDir([string]$identity) {
   Join-Path (Join-Path $env:APPDATA "LOVE") $identity
 }
 
+# Refuse to touch anything while the game is up: it rewrites options.lua when
+# it exits, so an edit made now would be silently thrown away.
+$running = @(Get-Process gen1recomp -ErrorAction SilentlyContinue)
+if ($running.Count -gt 0) {
+  throw "gen1recomp is running ($($running.Count) window(s)). Close it first -- it rewrites options.lua on exit, which would undo everything this does."
+}
+
 if ($Identity -ne "") {
   $identities = @($Identity)
 } else {
   $identities = 1..$Players | ForEach-Object { "gen1recomp-p$_" }
 }
 
-Write-Host "mods from : $repo"
-Write-Host "installing: $($MODS -join ', ')"
+Write-Host "our mods    : $repo"
+Write-Host "source      : $Source" -NoNewline
+if ($Identity -ne "") { Write-Host " (not used: -Identity given)" } else { Write-Host "" }
+Write-Host "players     : $($identities -join ', ')"
 Write-Host ""
 
 # ------------------------------------------------------------------ migrate
 foreach ($id in $identities) {
   $dest = Get-SaveDir $id
   $old  = Get-LegacySaveDir $id
-
   if ((Test-Path $old) -and -not (Test-Path $dest)) {
     Write-Host "$id : migrating from the old love.exe location" -ForegroundColor Yellow
-    Write-Host "    $old"
-    Write-Host " -> $dest"
     New-Item -ItemType Directory -Path $dest -Force | Out-Null
-    # Copy, never move: if this migration is wrong for some reason, the
-    # original playthrough is still sitting exactly where it was.
+    # Copy, never move: if this migration is wrong the original playthrough is
+    # still sitting exactly where it was.
     Get-ChildItem -Path $old -Force | ForEach-Object {
       Copy-Item -Path $_.FullName -Destination $dest -Recurse -Force
     }
-    Write-Host "    copied (the old folder is left in place, untouched)"
-  } elseif ((Test-Path $old) -and (Test-Path $dest)) {
-    Write-Host "$id : both locations exist - leaving the old one alone" -ForegroundColor DarkGray
-    Write-Host "    old: $old"
+    Write-Host "    copied (the old folder is left untouched)"
   }
 }
 
-# --------------------------------------------------------------------- mods
+# ------------------------------------------------------------------ our mods
+function Install-Mod([string]$from, [string]$toDir, [string]$name) {
+  $to = Join-Path $toDir $name
+  if (Test-Path $to) { Remove-Item $to -Recurse -Force }
+  Copy-Item -Path $from -Destination $to -Recurse -Force
+  # Verify rather than assume. A mod folder without its manifest is not a mod:
+  # the loader skips it in silence, and for PAD_OWNER that means every
+  # controller drives every window with nothing anywhere saying why.
+  if (-not (Test-Path (Join-Path $to "manifest.json"))) {
+    throw "Copied $name to $to but manifest.json is not there. Is the game still running, or is something locking that folder?"
+  }
+}
+
 foreach ($id in $identities) {
-  $dest = Get-SaveDir $id
-  $modsDir = Join-Path $dest "mods"
+  $modsDir = Join-Path (Get-SaveDir $id) "mods"
   New-Item -ItemType Directory -Path $modsDir -Force | Out-Null
-
-  Write-Host ""
-  Write-Host "$id -> $modsDir"
-
+  Write-Host "$id"
   foreach ($m in $MODS) {
-    $to = Join-Path $modsDir $m
-    if (Test-Path $to) { Remove-Item $to -Recurse -Force }
-    Copy-Item -Path (Join-Path $repo $m) -Destination $to -Recurse -Force
-
-    # Verify rather than assume. A mod folder without its manifest is not a
-    # mod -- the loader skips it silently, and for PAD_OWNER that means every
-    # controller drives every window with nothing anywhere saying why.
-    $manifest = Join-Path $to "manifest.json"
-    if (-not (Test-Path $manifest)) {
-      throw "Copied $m to $to but manifest.json is not there. Is the game still running, or is something locking that folder?"
-    }
+    Install-Mod (Join-Path $repo $m) $modsDir $m
     Write-Host "    + $m"
   }
 }
 
+if ($Identity -ne "") {
+  Write-Host ""
+  Write-Host "Done. PAD_OWNER stays inert unless POKEPORT_PAD is set, so single player is unchanged." -ForegroundColor Green
+  return
+}
+
 # ------------------------------------------------------------------- mirror
+$srcDir  = Get-SaveDir $Source
+$srcMods = Join-Path $srcDir "mods"
+
+Write-Host ""
+if (-not (Test-Path $srcMods)) {
+  Write-Warning "No source profile at $srcMods - install your mods through the game's MODS panel first, then re-run this."
+} else {
+  $want = @(Get-ChildItem -Path $srcMods -Directory |
+            Where-Object { $MODS -notcontains $_.Name } |
+            Where-Object { Test-Path (Join-Path $_.FullName "manifest.json") })
+
+  Write-Host ("mirroring from {0}: {1}" -f $Source,
+    ($(if ($want.Count) { ($want | ForEach-Object { $_.Name }) -join ", " } else { "(nothing else installed)" })))
+
+  foreach ($id in $identities) {
+    if ($id -eq $Source) { continue }
+    $modsDir = Join-Path (Get-SaveDir $id) "mods"
+    foreach ($o in $want) {
+      Install-Mod $o.FullName $modsDir $o.Name
+    }
+
+    # Match, do not accumulate. See the header for why this is the default.
+    $removed = @()
+    if (-not $NoPrune) {
+      $keep = @($MODS) + @($want | ForEach-Object { $_.Name })
+      Get-ChildItem -Path $modsDir -Directory |
+        Where-Object { $keep -notcontains $_.Name } |
+        ForEach-Object {
+          $removed += $_.Name
+          Remove-Item $_.FullName -Recurse -Force
+        }
+    }
+
+    $line = "    {0} -> {1} mirrored" -f $id, $want.Count
+    if ($removed.Count -gt 0) { $line += ", removed " + ($removed -join ", ") }
+    Write-Host $line
+  }
+}
+
+# ----------------------------------------------------------------- settings
 #
-# Our three always come from the repo above -- that is the copy the scripts
-# test against, and letting a stale GUI-installed copy overwrite it would make
-# "I updated the mod" quietly untrue. Everything ELSE comes from the source
-# profile, which is where the launcher's MODS panel puts things.
-#
-# MERGE, never prune. A player profile legitimately has mods the source does
-# not (the voxel fork lives in the per-player profiles here), and silently
-# deleting somebody's mod because it was missing from another folder is not a
-# trade worth making. Uninstalling stays a deliberate act.
-if ($Mirror -or $MirrorFrom -ne "") {
-  if ($MirrorFrom -eq "") { $MirrorFrom = "pokemon-love2d" }
-  $srcMods = Join-Path (Get-SaveDir $MirrorFrom) "mods"
+# Only two blocks, and deliberately not the whole file. options.lua also holds
+# saveSlots, the active slot and lastVersion -- per-player state that a
+# wholesale copy would clobber, pointing every player at one player's save
+# registry.
+function Get-LuaBlock([string]$text, [string]$name) {
+  $m = [regex]::Match($text, "(?m)^(?<indent>\s*)$name = \{.*?^\k<indent>\},\r?\n", 'Singleline')
+  if ($m.Success) { return $m.Value }
+  return $null
+}
+
+function Set-LuaBlock([string]$text, [string]$name, [string]$block) {
+  $existing = Get-LuaBlock $text $name
+  if ($existing) { return $text.Replace($existing, $block) }
+  # not present: insert before the closing brace of the returned table
+  return [regex]::Replace($text, "(?m)^\}\s*$", ($block + "}"), 1)
+}
+
+if (-not $KeepSettings -and (Test-Path (Join-Path $srcDir "options.lua"))) {
+  $srcText = [System.IO.File]::ReadAllText((Join-Path $srcDir "options.lua"))
+  $blocks = @{}
+  foreach ($b in @("pipelines", "modOptions")) {
+    $blocks[$b] = Get-LuaBlock $srcText $b
+  }
 
   Write-Host ""
-  if (-not (Test-Path $srcMods)) {
-    Write-Warning "Nothing to mirror: $srcMods does not exist."
-  } else {
-    $others = Get-ChildItem -Path $srcMods -Directory |
-              Where-Object { $MODS -notcontains $_.Name } |
-              Where-Object { $Except -notcontains $_.Name } |
-              Where-Object { Test-Path (Join-Path $_.FullName "manifest.json") }
+  Write-Host "syncing display + mod settings from $Source"
+  foreach ($id in $identities) {
+    if ($id -eq $Source) { continue }
+    $optPath = Join-Path (Get-SaveDir $id) "options.lua"
 
-    if ($Except.Count -gt 0) {
-      Write-Host ("Mirror: skipping {0}" -f ($Except -join ", ")) -ForegroundColor DarkGray
+    # A brand-new profile has no options.lua until its first boot -- and if we
+    # skip it here, that first boot writes DEFAULTS and the player starts with
+    # the voxel pipeline off while everyone else has it on. So seed the file
+    # from the source, minus the per-player bits.
+    #
+    # saveSlots and lastVersion are the dangerous ones: they are that
+    # profile's own save registry, and handing every player one player's copy
+    # would point them all at a slot list that is not theirs. A new profile has
+    # no saves to lose, so dropping the block entirely is both safe and
+    # correct -- the game rebuilds it.
+    if (-not (Test-Path $optPath)) {
+      $seed = $srcText
+      $slots = Get-LuaBlock $seed "saveSlots"
+      if ($slots) { $seed = $seed.Replace($slots, "") }
+      $seed = [regex]::Replace($seed, '(?m)^\s*lastVersion = .*\r?\n', '')
+      [System.IO.File]::WriteAllText($optPath, $seed, (New-Object System.Text.UTF8Encoding($false)))
+      Write-Host "    $id : seeded options.lua from $Source (no save registry copied)"
+      continue
     }
-
-    if ($others.Count -eq 0) {
-      Write-Host "Mirror: $MirrorFrom has no other mods to copy."
-    } else {
-      Write-Host ("Mirroring from {0}: {1}" -f $MirrorFrom,
-        (($others | ForEach-Object { $_.Name }) -join ", "))
-      foreach ($id in $identities) {
-        if ($id -eq $MirrorFrom) { continue }
-        $destMods = Join-Path (Get-SaveDir $id) "mods"
-        New-Item -ItemType Directory -Path $destMods -Force | Out-Null
-        foreach ($o in $others) {
-          $to = Join-Path $destMods $o.Name
-          if (Test-Path $to) { Remove-Item $to -Recurse -Force }
-          Copy-Item -Path $o.FullName -Destination $to -Recurse -Force
-          if (-not (Test-Path (Join-Path $to "manifest.json"))) {
-            throw "Copied $($o.Name) to $to but manifest.json is not there."
-          }
-        }
-        Write-Host ("    {0} -> {1} mod(s)" -f $id, $others.Count)
+    Copy-Item $optPath "$optPath.bak-install" -Force
+    $t = [System.IO.File]::ReadAllText($optPath)
+    $changed = @()
+    foreach ($b in @("pipelines", "modOptions")) {
+      if ($blocks[$b]) {
+        $before = $t
+        $t = Set-LuaBlock $t $b $blocks[$b]
+        if ($t -ne $before) { $changed += $b }
       }
     }
+    [System.IO.File]::WriteAllText($optPath, $t, (New-Object System.Text.UTF8Encoding($false)))
+    Write-Host ("    {0} : {1}" -f $id,
+      $(if ($changed.Count) { ($changed -join ", ") + " (backup: options.lua.bak-install)" } else { "already matching" }))
   }
 }
 
 # --------------------------------------------------------------- ROM cache
-#
-# Only when there is more than one player, and only from player 1.
-if ($Identity -eq "" -and $Players -ge 2) {
-  $source = Get-SaveDir "gen1recomp-p1"
-  $versions = @("red", "blue", "yellow")
-  # An allowlist, not a denylist: anything not named here is simply not
-  # copied, so a file this script has never heard of cannot leak one player's
-  # save into another's folder.
-  $copyDirs = @("data\generated", "assets\generated")
+$versions = @("red", "blue", "yellow")
+# An allowlist, not a denylist: anything not named here is simply not copied,
+# so a file this script has never heard of cannot leak one player's save into
+# another's folder.
+$copyDirs = @("data\generated", "assets\generated")
 
-  $anyCache = $false
-  foreach ($v in $versions) {
-    if (Test-Path (Join-Path $source "$v\rom-cache.complete")) { $anyCache = $true }
-  }
-
-  Write-Host ""
-  if (-not $anyCache) {
-    Write-Host "No ROM cache in gen1recomp-p1 yet." -ForegroundColor Yellow
-    Write-Host "Run  .\play.ps1 -Players 1  , import your ROM, quit, then re-run this."
-  } else {
-    Write-Host "Seeding the ROM cache from player 1..."
-    for ($i = 2; $i -le $Players; $i++) {
-      $dest = Get-SaveDir "gen1recomp-p$i"
-      $copied = 0
-
-      foreach ($v in $versions) {
-        $vSrc = Join-Path $source $v
-        if (-not (Test-Path $vSrc)) { continue }
-
-        foreach ($d in $copyDirs) {
-          $from = Join-Path $vSrc $d
-          if (-not (Test-Path $from)) { continue }
-          $to = Join-Path (Join-Path $dest $v) $d
-          if ((Test-Path $to) -and -not $Force) { continue }
-          New-Item -ItemType Directory -Path (Split-Path -Parent $to) -Force | Out-Null
-          Copy-Item -Path $from -Destination $to -Recurse -Force
-          $copied++
-        }
-
-        $marker = Join-Path $vSrc "rom-cache.complete"
-        $to = Join-Path (Join-Path $dest $v) "rom-cache.complete"
-        if ((Test-Path $marker) -and (-not (Test-Path $to) -or $Force)) {
-          New-Item -ItemType Directory -Path (Split-Path -Parent $to) -Force | Out-Null
-          Copy-Item -Path $marker -Destination $to -Force
-          $copied++
-        }
-      }
-
-      if ($copied -gt 0) {
-        Write-Host "    player $i : $copied item(s) copied"
-      } else {
-        Write-Host "    player $i : already has a cache (use -Force to replace)"
-      }
-    }
-  }
+$cacheFrom = $srcDir
+$anyCache = $false
+foreach ($v in $versions) {
+  if (Test-Path (Join-Path $cacheFrom "$v\rom-cache.complete")) { $anyCache = $true }
 }
-
-# ------------------------------------------------------------- discoverable
-#
-# A mod installed through the game's own MODS panel lands in whichever profile
-# the launcher was running as, and nothing about that says "your other players
-# did not get this". Say it here, where somebody is already looking.
-if (-not $Mirror -and $MirrorFrom -eq "" -and $Identity -eq "") {
-  $launcherMods = Join-Path (Get-SaveDir "pokemon-love2d") "mods"
-  if (Test-Path $launcherMods) {
-    $p1Mods = Join-Path (Get-SaveDir "gen1recomp-p1") "mods"
-    $have = @()
-    if (Test-Path $p1Mods) {
-      $have = (Get-ChildItem $p1Mods -Directory | ForEach-Object { $_.Name })
-    }
-    $extra = Get-ChildItem $launcherMods -Directory |
-             Where-Object { $MODS -notcontains $_.Name -and $have -notcontains $_.Name } |
-             ForEach-Object { $_.Name }
-    if ($extra.Count -gt 0) {
-      Write-Host ""
-      Write-Host ("Note: pokemon-love2d has {0} mod(s) your players do not: {1}" `
-        -f $extra.Count, ($extra -join ", ")) -ForegroundColor Yellow
-      Write-Host "      Copy them across with:  .\install.ps1 -Players $Players -Mirror"
-    }
+if (-not $anyCache) {
+  $cacheFrom = Get-SaveDir "gen1recomp-p1"
+  foreach ($v in $versions) {
+    if (Test-Path (Join-Path $cacheFrom "$v\rom-cache.complete")) { $anyCache = $true }
   }
 }
 
 Write-Host ""
-if ($Identity -ne "") {
-  Write-Host "Done. Launch the game as you normally would." -ForegroundColor Green
-  Write-Host "PAD_OWNER stays inert unless POKEPORT_PAD is set, so single player is unchanged."
+if (-not $anyCache) {
+  Write-Host "No ROM cache anywhere yet." -ForegroundColor Yellow
+  Write-Host "Run the game once, import your ROM, quit, then re-run this."
 } else {
-  Write-Host "Done. Next: .\play.ps1 -Players $Players" -ForegroundColor Green
+  Write-Host "seeding the ROM cache from $(Split-Path -Leaf $cacheFrom)"
+  foreach ($id in $identities) {
+    $dest = Get-SaveDir $id
+    if ($dest -eq $cacheFrom) { continue }
+    $copied = 0
+    foreach ($v in $versions) {
+      $vSrc = Join-Path $cacheFrom $v
+      if (-not (Test-Path $vSrc)) { continue }
+      foreach ($d in $copyDirs) {
+        $from = Join-Path $vSrc $d
+        if (-not (Test-Path $from)) { continue }
+        $to = Join-Path (Join-Path $dest $v) $d
+        if ((Test-Path $to) -and -not $Force) { continue }
+        New-Item -ItemType Directory -Path (Split-Path -Parent $to) -Force | Out-Null
+        Copy-Item -Path $from -Destination $to -Recurse -Force
+        $copied++
+      }
+      $marker = Join-Path $vSrc "rom-cache.complete"
+      $to = Join-Path (Join-Path $dest $v) "rom-cache.complete"
+      if ((Test-Path $marker) -and (-not (Test-Path $to) -or $Force)) {
+        New-Item -ItemType Directory -Path (Split-Path -Parent $to) -Force | Out-Null
+        Copy-Item -Path $marker -Destination $to -Force
+        $copied++
+      }
+    }
+    Write-Host ("    {0} : {1}" -f $id,
+      $(if ($copied -gt 0) { "$copied item(s) copied" } else { "already has a cache (-Force to replace)" }))
+  }
 }
+
+Write-Host ""
+Write-Host "Done. Next: .\play.ps1 -Players $Players" -ForegroundColor Green
+Write-Host "Install mods through the game's MODS panel on the PLAY profile, then re-run this."
