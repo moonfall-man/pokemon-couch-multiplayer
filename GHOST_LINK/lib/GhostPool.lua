@@ -134,8 +134,17 @@ function GhostPool:handle(world, game, msg)
   local t = msg.t
 
   if t == "peer_lost" then
-    -- The transport cannot tell us WHICH player id died, only that a socket
-    -- went away, so this is a nudge to re-check timeouts rather than a drop.
+    -- A socket died. The transport names the ids whose messages were arriving
+    -- on it, so this can be a real drop rather than the nudge-to-recheck it
+    -- used to be.
+    --
+    -- This is the path for a CRASH or a pulled cable, where no bye is
+    -- possible. A clean quit sends one and is handled above; both exist
+    -- because either alone leaves a case where somebody stands frozen in
+    -- another player's world.
+    for _, id in ipairs(msg.ids or {}) do
+      self:drop(world, id)
+    end
     return
   end
 

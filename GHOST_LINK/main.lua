@@ -436,6 +436,38 @@ mod.events:on("world.blacked_out", function()
   if session.pool then session.pool:dropAll(mod.world) end
 end)
 
+-- ------- leaving
+--
+-- Closing the window has to take my ghost out of everyone else's world, and
+-- there is no engine event for it: the mod bus emits mods.loaded,
+-- mod.options_changed and pokemon.before_give, and nothing at all for quit.
+-- Before this, quitting sent no notice whatsoever -- the process simply died,
+-- and since ENet is UDP there is no FIN to notice. The other player was left
+-- looking at a statue until ENet's own peer timeout expired and then the
+-- pool's 30-second stale sweep finally collected it.
+--
+-- So wrap love.quit. This works for the same reason PAD_OWNER's controller
+-- filter does, and it is worth being explicit that it is the same fact rather
+-- than a coincidence: LOVE never captures its callbacks at boot, love.handlers
+-- resolves love.<name> at the moment each event is dispatched. A function
+-- installed from a mod is simply the one that runs.
+--
+-- Both exits come through here. A plain quit, and -- when the game was not
+-- launched with --game/POKEPORT_GAME -- the window close that RESTARTS into
+-- the launcher, which would otherwise leave a ghost standing in the other
+-- player's world while this process was busy being reborn.
+--
+-- Delegates unconditionally and never changes the answer: love.quit returning
+-- true ABORTS the quit (that is how the restart-to-launcher path works), so
+-- swallowing or inventing that return value would hang the window shut.
+do
+  local inner = love.quit
+  love.quit = function(...)
+    pcall(stop)
+    if type(inner) == "function" then return inner(...) end
+  end
+end
+
 -- ------- exports (for debugging from another mod or the console)
 
 mod.exports.version = "0.1.0"

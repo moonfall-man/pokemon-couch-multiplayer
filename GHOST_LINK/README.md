@@ -173,6 +173,22 @@ One catch worth knowing: a `trueColor` sprite skips the OBP bake, and the bake
 is where near-white would have been keyed to alpha. So the colour output needs
 **real transparency** for its background, not white.
 
+That catch bit, and it's a good illustration of how a half-applied rule hides.
+The pixels the creature landed on were correctly transparent — but the 16×16
+cell was *pre-filled* with opaque white before the creature was drawn into it,
+and only one of the two modes ever keys white away. A follower is scaled by
+`min(16/w, 16/h)`, so unless its bounding box is square there is padding: a bar
+above a wide mon, bars either side of a tall one. Measured across the real 151:
+
+| | before | after |
+| --- | --- | --- |
+| frames with opaque white | **73** | 0 |
+| total white pixels | 1904 | 0 |
+
+Weedle and Kakuna were carrying an 80-pixel white slab in a 256-pixel cell. The
+synthetic-source test that covered this code only ever ran the DMG path, where
+white is correct — which is exactly why it passed.
+
 **Re-draw the outline; don't recover it.** A 1px black border averaged 3.5×
 down becomes a grey suggestion, and thresholding it back gives a broken,
 dotted edge. But the exact silhouette is already known — it *is* the coverage
@@ -193,6 +209,23 @@ greys. Downsampled, a dither averages to a mid-tone, and spreading those back
 across four levels turns them into speckle. Collapsing the middle onto one
 flat body tone throws the dither away and keeps the outline and silhouette,
 which is all that survives at 16px anyway.
+
+**The cache names what it is.** Frames land at
+
+```
+ghostlink/followers/<red|blue|yellow>/<species>.png       colour
+ghostlink/followers/<red|blue|yellow>/<species>.dmg.png   four greys over white
+```
+
+Both halves of that path fix a real bug, and they're the same bug: a cache that
+doesn't record what it is forces the reader to re-derive it from *today's*
+state, which needn't match the state it was written under. The frames come from
+`assets/generated`, which is per version — one shared folder served Red's art
+under Blue and Yellow. And the mode used to be recomputed by asking the palette
+tables again, so a grey frame written when palettes weren't reachable could be
+handed back later labelled `trueColor` — a solid white block following you
+around, since nothing would key that white. Now the filename answers both, and
+`ensure()` reads it rather than guessing.
 
 Turn it `OFF` to fall back to the icons below.
 
@@ -259,16 +292,60 @@ field before it reaches the world. That's not paranoia about your spouse:
 `NPC.new` *asserts* on an unknown sprite id, so one malformed message would
 take the whole game down rather than drop a ghost.
 
+**Leaving is announced three ways**, because each one covers a case the others
+can't:
+
+| you did this | what the others get |
+| --- | --- |
+| closed the window | a `bye`, from a wrapped `love.quit` |
+| QUIT → RETURN TO MAIN MENU, or soft reset | a `bye`, on the leaving-the-world edge |
+| crashed, or pulled the cable | `peer_lost`, on ENet's timeout |
+
+Going quiet is *not* one of them, and that's the point: a player who stops
+sending looks exactly like one standing still reading a sign, so without an
+explicit goodbye the body survives until the 30-second stale sweep.
+
+Two things had to be fixed for that to actually work, and both are worth
+recording because both looked fine.
+
+*The world doesn't stop existing when you leave it.* `WorldAPI:overworld()`
+falls back to the `game.overworld` module singleton, and `Game:returnToTitle`
+pops every state without clearing that singleton's `map` — so after QUIT,
+`world:current()` cheerfully keeps reporting the last cell you stood on. The
+state **stack** is the thing that tells the truth, and a battle or a menu is
+pushed *on top of* the overworld rather than replacing it, so checking the
+stack still lets a player in a battle keep standing where they left off.
+
+*Saying goodbye and hanging up in the same breath loses the goodbye.*
+`peer:send` only queues; `disconnect_now` discards the queue. Flushing first
+is the obvious fix and it is **not sufficient** — measured against real
+lua-enet on localhost:
+
+| teardown | payload received |
+| --- | --- |
+| `flush` then `disconnect_now` | only if the peer serviced in between |
+| graceful `disconnect()` + service | never |
+| `flush` then destroy, no disconnect | always |
+
+ENet's disconnect handler resets the peer's queues, and that includes packets
+that have **already arrived** but not yet been dispatched. On loopback the bye
+and the disconnect land microseconds apart while the peer services at 60 Hz,
+so they usually land in the same batch — and the disconnect throws away the
+bye sitting next to it. Sending no disconnect at all removes the race instead
+of narrowing it.
+
 ## Verified
 
-Tested against the real engine on Windows, LÖVE 11.5:
+Tested against the real engine on Windows, LÖVE 11.5. **163/163** on the
+harness — which runs the real lib modules under real LuaJIT and includes a
+genuine two-ended ENet session over localhost — plus real-game checks:
 
 | check | result |
 | --- | --- |
-**88/88** on the harness, plus real-game checks:
-
-| check | result |
-| --- | --- |
+| Opaque white across the real 151 followers | 73 frames / 1904 px → **0 / 0** |
+| A bye queued immediately before `close()` | reaches the peer |
+| `peer_lost` after a socket dies | names the player who was on it |
+| Leaving the world (title / soft reset) | sends exactly one bye, then re-announces on return |
 | Module load, all 6 libs | pass |
 | `Wire.validate` — good messages | accepted |
 | `Wire.validate` — NaN, bad facing, missing id, wrong version, path-ish species | rejected |

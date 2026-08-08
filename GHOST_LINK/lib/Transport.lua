@@ -42,6 +42,7 @@ end
 function Transport.new()
   return setmetatable({
     peers = {},        -- live enet peers (host: clients; client: just the host)
+    idsByPeer = {},    -- peer -> { [ghostId] = true }, for peer_lost
     inbox = {},
     outbox = {},       -- queued until the first peer arrives
     mode = nil,        -- "hosting" | "joining"
@@ -184,6 +185,21 @@ function Transport:update()
     elseif event.type == "receive" then
       local msg = Json.decode(event.data)
       if msg then
+        -- Remember WHICH SOCKET this player's messages arrive on, so that a
+        -- peer dropping can name the ghosts it took with it. Without this a
+        -- disconnect knows only that "a socket went away" -- which is not
+        -- something the pool can act on, and is why peer_lost used to be a
+        -- no-op that left a statue standing until the stale timeout.
+        --
+        -- On the HOST each client is its own peer, so the mapping is exact.
+        -- On a CLIENT everything arrives relayed down the single host peer,
+        -- so every id maps to it -- which is also correct: if that peer dies
+        -- the client's whole session is over anyway.
+        if type(msg.id) == "string" then
+          local ids = self.idsByPeer[event.peer]
+          if not ids then ids = {}; self.idsByPeer[event.peer] = ids end
+          ids[msg.id] = true
+        end
         table.insert(self.inbox, msg)
         if self.mode == "hosting" then self:relay(msg, event.peer) end
       else
@@ -195,8 +211,16 @@ function Transport:update()
         self.peers[event.peer] = nil
         Logger.info("ghostlink: peer left (%d remain)", self:peerCount())
         -- Surface it as a synthetic message so the pool can drop that
-        -- player's ghost without waiting for a timeout.
-        table.insert(self.inbox, { t = "peer_lost", peer = tostring(event.peer) })
+        -- player's ghosts without waiting for a timeout. `ids` is the whole
+        -- point: a crash or a pulled cable sends no bye, so this is the only
+        -- notice anyone gets.
+        local ids = {}
+        for id in pairs(self.idsByPeer[event.peer] or {}) do
+          ids[#ids + 1] = id
+        end
+        self.idsByPeer[event.peer] = nil
+        table.insert(self.inbox,
+          { t = "peer_lost", peer = tostring(event.peer), ids = ids })
       end
       -- A client losing its only peer means the session is over. A host
       -- losing one just means one player quit.
@@ -219,17 +243,47 @@ function Transport:poll()
   return msgs
 end
 
+-- FLUSH, THEN LEAVE WITHOUT SAYING GOODBYE. Both halves are deliberate, and
+-- the second one is the opposite of what it should be.
+--
+-- peer:send() only QUEUES a packet; nothing reaches the wire until the host is
+-- serviced or flushed. This used to call disconnect_now() first, which tears
+-- the connection down and -- by design -- throws that queue away. So the bye
+-- Presence had just queued died one line before the flush that would have
+-- sent it, and the other player was left looking at a statue until the
+-- 30-second stale sweep collected it.
+--
+-- Flushing first is necessary but NOT sufficient, which is the part worth
+-- writing down. Measured against real lua-enet, two ends on localhost:
+--
+--   teardown                              peer received the payload
+--   ------------------------------------  -------------------------
+--   flush then disconnect_now             only if it serviced in between
+--   graceful disconnect() + service       never
+--   flush then destroy, no disconnect     always
+--
+-- ENet's enet_protocol_handle_disconnect resets the peer's queues, and that
+-- includes packets that have ALREADY ARRIVED but not yet been dispatched. On
+-- loopback the bye and the disconnect land microseconds apart while the peer
+-- services at 60Hz, so they are usually read in the same batch -- and the
+-- disconnect throws away the bye sitting next to it. Whether the message
+-- survives comes down to how the other process happened to be scheduled.
+--
+-- Sending no disconnect at all removes the race rather than narrowing it. The
+-- peer reads the bye like any other message and drops the ghost immediately;
+-- it notices the dead socket later, on ENet's own timeout, which is exactly
+-- when peer_lost is supposed to fire. Nothing is waiting on that: the bye has
+-- already done the work, and peer_lost exists for the crash that could not
+-- send one.
 function Transport:close()
   if self.closed and not self.enetHost then return end
-  for peer in pairs(self.peers) do
-    pcall(function() peer:disconnect_now() end)
-  end
-  self.peers = {}
   if self.enetHost then
     pcall(function() self.enetHost:flush() end)
     pcall(function() self.enetHost:destroy() end)
     self.enetHost = nil
   end
+  self.peers = {}
+  self.idsByPeer = {}
   self.closed = true
 end
 

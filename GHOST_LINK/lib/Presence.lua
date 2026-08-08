@@ -34,6 +34,10 @@ function Presence.new(id, opts)
     lastSpecies = nil,
     lastSent = 0,
     helloSent = false,
+    -- Whether the last tick found me in the overworld, so tick() can spot the
+    -- edge in either direction. Starts false: the first successful sample is
+    -- an arrival and announces itself like one.
+    inWorldLast = false,
   }, Presence)
 end
 
@@ -56,8 +60,42 @@ local function leadSpecies(game)
   return nil
 end
 
+-- Is the overworld actually on the state stack?
+--
+-- world:current() is not enough on its own, and the reason is a trap.
+-- WorldAPI:overworld() walks the state stack for an isOverworld state and then
+-- FALLS BACK to the game.overworld module singleton:
+--
+--   local ow = game and game.overworld
+--   if ow and ow.isOverworld and ow.map then return ow end
+--
+-- Game:returnToTitle pops every state but never clears that singleton's map.
+-- So after QUIT -> RETURN TO MAIN MENU (and after the A+B+SELECT+START soft
+-- reset, which runs the same function), current() cheerfully keeps reporting
+-- the last cell you stood on -- and your ghost stands there in everyone
+-- else's world, facing the same way, indefinitely.
+--
+-- A battle or a menu is PUSHED ON TOP of the overworld state rather than
+-- replacing it, so it is still on the stack and this stays true. That is
+-- exactly what we want: someone in a battle should keep standing where they
+-- left off, not blink out and back.
+--
+-- Fails OPEN. If the stack cannot be read at all, assume we are in the world,
+-- because the cost of being wrong that way is a stale ghost for 30 seconds
+-- and the cost of the other way is never appearing at all.
+function Presence.inWorld(game)
+  local states = game and game.stack and game.stack.states
+  if type(states) ~= "table" then return true end
+  for i = #states, 1, -1 do
+    local s = states[i]
+    if s and s.isOverworld then return true end
+  end
+  return false
+end
+
 function Presence:sample(world, game)
   if not world then return nil end
+  if not Presence.inWorld(game) then return nil end
   local ok, cur = pcall(function() return world:current() end)
   if not ok or type(cur) ~= "table" or not cur.mapId then return nil end
   if cur.x == nil or cur.y == nil then return nil end
@@ -83,7 +121,30 @@ function Presence:tick(transport, world, game)
   if not transport or transport.closed then return false end
 
   local state = self:sample(world, game)
-  if not state then return false end   -- title screen, menus, no overworld
+
+  -- LEAVING THE WORLD IS AN EVENT, not just an absence.
+  --
+  -- Going quiet is not enough: to everyone else a player who stops sending is
+  -- indistinguishable from one standing still reading a sign, so the ghost
+  -- stays put until the 30-second stale timeout notices. Say so once, on the
+  -- edge, and the body goes immediately.
+  if not state then
+    if self.inWorldLast then
+      self.inWorldLast = false
+      self:sendBye(transport)
+      -- Nothing about me is announced any more, so the next arrival has to
+      -- reintroduce me from scratch rather than resume mid-conversation.
+      self.helloSent = false
+      self.lastMap, self.lastSpecies = nil, nil
+    end
+    return false
+  end
+
+  -- Back in the world -- a new game, a loaded save, or simply the first tick.
+  if not self.inWorldLast then
+    self.inWorldLast = true
+    self:armResend()
+  end
 
   if not self.helloSent then self:sendHello(transport, game) end
 

@@ -26,12 +26,47 @@ local RomFollowers = {}
 
 local CELL = 16
 local SRC_DIR = "assets/generated/battle/front/"
-local OUT_DIR = "ghostlink/followers/"
+local ROOT_DIR = "ghostlink/followers/"
 
 -- Bumped whenever the generator's output changes, so an old cache is thrown
 -- away instead of leaving everyone looking at last version's sprites.
-local CACHE_VERSION = "3-colour"
-local STAMP = OUT_DIR .. ".version"
+local CACHE_VERSION = "4-alpha-pad"
+local STAMP = ROOT_DIR .. ".version"
+
+-- ------------------------------------------------------- where a frame lives
+--
+-- The path carries BOTH facts the caller would otherwise have to guess:
+-- which game the art came from, and whether it is colour or DMG grey.
+--
+--   ghostlink/followers/red/pikachu.png          colour, trueColor = true
+--   ghostlink/followers/red/pikachu.dmg.png      four greys over white
+--
+-- Both were real bugs, and both were the same bug: a cache that does not
+-- record what it is forces whoever reads it to re-derive that from today's
+-- state, which is not necessarily the state it was written under.
+--
+--   * The frames are generated from assets/generated, which is per version --
+--     so a cache shared across Red, Blue and Yellow served Red's art to all
+--     three.
+--   * ensure() asked paletteFor() whether this species has colour and then
+--     returned a file that may predate the answer. If the palette table was
+--     unreachable on the boot that wrote the file but reachable now, a grey
+--     frame on a WHITE background got registered as trueColor -- and a
+--     trueColor sprite skips the shade bake, which is the only thing that
+--     would have keyed that white away. The result is a solid white 16x16
+--     block following you around.
+local function versionKey()
+  local ok, GameVersion = pcall(require, "src.core.GameVersion")
+  if ok and GameVersion and GameVersion.get then
+    local okGet, v = pcall(GameVersion.get)
+    if okGet and type(v) == "string" and v ~= "" then return v end
+  end
+  return "red"
+end
+
+local function outDir()
+  return ROOT_DIR .. versionKey() .. "/"
+end
 
 -- The 4 DMG shades. Index 1 is the background: SpriteRenderer keys near-white
 -- (red > 0.83) to transparent, so the padding has to end up white rather than
@@ -79,8 +114,10 @@ local function sourcePath(Assets, species)
   return nil
 end
 
-function RomFollowers.outputPath(species)
-  return OUT_DIR .. species:lower():gsub("_", "-") .. ".png"
+-- isColour picks the suffix, so the file names its own mode.
+function RomFollowers.outputPath(species, isColour)
+  local base = outDir() .. species:lower():gsub("_", "-")
+  return base .. (isColour and ".png" or ".dmg.png")
 end
 
 -- ------------------------------------------------------------ real colour
@@ -215,11 +252,36 @@ function RomFollowers.build(Assets, species, palette)
 
   local coverage, luminance = sample(data, bx, by, bw, bh, outW, outH)
 
+  -- THE BACKGROUND MUST MATCH THE MODE.
+  --
+  -- Only one of outW/outH can be CELL -- the scale is min(CELL/bw, CELL/bh) --
+  -- so unless the creature's bounding box is exactly square, the frame has
+  -- padding: a bar across the top for a wide mon (bottom-aligned), bars down
+  -- both sides for a tall one.
+  --
+  -- Filling that padding with opaque white unconditionally was correct for
+  -- exactly one of the two output modes. The DMG path is drawn over white and
+  -- the renderer's shade bake keys near-white to alpha, so white padding
+  -- disappears. The COLOUR path sets trueColor, which claims the sprite out of
+  -- that bake -- so nothing ever keyed the white, and it stayed: a solid white
+  -- slab wrapped around the mon on every species whose sprite is not square.
+  -- That is most of them.
+  --
+  -- So the fill is the same background the body loop uses below, chosen once
+  -- here rather than assumed.
+  local function background()
+    if palette then return 0, 0, 0, 0 end   -- real transparency
+    return 1, 1, 1, 1                       -- white, keyed by the bake
+  end
+
   -- Bottom-aligned and centred: a tall mon should stand on the ground rather
   -- than float with its feet cropped.
   local cell = love.image.newImageData(CELL, CELL)
-  for y = 0, CELL - 1 do
-    for x = 0, CELL - 1 do cell:setPixel(x, y, 1, 1, 1, 1) end
+  do
+    local br, bg, bb, ba = background()
+    for y = 0, CELL - 1 do
+      for x = 0, CELL - 1 do cell:setPixel(x, y, br, bg, bb, ba) end
+    end
   end
 
   -- The OUTLINE is drawn from the silhouette, not from brightness.
@@ -255,11 +317,7 @@ function RomFollowers.build(Assets, species, palette)
       local i = y * outW + x
       local r, g, b, a
       if not covered(x, y) then
-        if palette then
-          r, g, b, a = 0, 0, 0, 0                       -- transparent
-        else
-          r, g, b, a = 1, 1, 1, 1                       -- white, keyed later
-        end
+        r, g, b, a = background()
       elseif not (covered(x - 1, y) and covered(x + 1, y)
                   and covered(x, y - 1) and covered(x, y + 1)) then
         r, g, b, a = tone(4)                            -- re-drawn outline
@@ -276,18 +334,33 @@ end
 
 -- ------------------------------------------------------------- generation
 
+-- A cached frame for `species`, or nil. Returns path, isColour.
+--
+-- The mode comes from WHICH FILE EXISTS, never from asking paletteFor() again:
+-- the file on disk was written under whatever was true at the time, and the
+-- only honest way to describe it is to read its name.
+function RomFollowers.cached(species)
+  for _, isColour in ipairs({ true, false }) do
+    local path = RomFollowers.outputPath(species, isColour)
+    if love.filesystem.getInfo(path) then return path, isColour end
+  end
+  return nil
+end
+
 -- Ensure a follower PNG exists for `species`.
--- Returns path, isColour -- or nil. Cached on disk, so this is one getInfo on
--- every boot after the first.
+-- Returns path, isColour -- or nil. Cached on disk, so this is one or two
+-- getInfo calls on every boot after the first.
 function RomFollowers.ensure(Assets, species)
+  local hit, hitColour = RomFollowers.cached(species)
+  if hit then return hit, hitColour end
+
   local palette = RomFollowers.paletteFor(species)
-  local out = RomFollowers.outputPath(species)
-  if love.filesystem.getInfo(out) then return out, palette ~= nil end
+  local out = RomFollowers.outputPath(species, palette ~= nil)
 
   local cell = RomFollowers.build(Assets, species, palette)
   if not cell then return nil end
 
-  love.filesystem.createDirectory(OUT_DIR)
+  love.filesystem.createDirectory(outDir())
   local okEnc = pcall(function() cell:encode("png", out) end)
   if not okEnc then return nil end
   if not love.filesystem.getInfo(out) then return nil end
@@ -296,11 +369,17 @@ end
 
 -- Throw the whole cache away when the generator's output has changed shape,
 -- so a version bump does not leave everyone staring at last version's art.
+--
+-- The stamp is at the root and the frames are per game version, deliberately:
+-- a generator change invalidates Red, Blue and Yellow alike, and clearing all
+-- three is what stops a Blue playthrough from quietly keeping frames this
+-- version of the code would no longer produce.
 function RomFollowers.checkCacheVersion()
   local stamp = love.filesystem.read(STAMP)
   if stamp == CACHE_VERSION then return false end
   RomFollowers.clear()
-  love.filesystem.createDirectory(OUT_DIR)
+  love.filesystem.createDirectory(ROOT_DIR)
+  love.filesystem.createDirectory(outDir())
   love.filesystem.write(STAMP, CACHE_VERSION)
   return true
 end
@@ -310,8 +389,7 @@ end
 function RomFollowers.generateAll(Assets, speciesList)
   local written, reused, missing = 0, 0, 0
   for _, species in ipairs(speciesList) do
-    local out = RomFollowers.outputPath(species)
-    if love.filesystem.getInfo(out) then
+    if RomFollowers.cached(species) then
       reused = reused + 1
     else
       local made = RomFollowers.ensure(Assets, species)
@@ -322,11 +400,21 @@ function RomFollowers.generateAll(Assets, speciesList)
 end
 
 -- Throw the cache away, so a version switch or a changed ROM regenerates.
+-- Walks every version's folder, not just the current one.
 function RomFollowers.clear()
-  local items = love.filesystem.getDirectoryItems(OUT_DIR)
-  for _, name in ipairs(items or {}) do
-    love.filesystem.remove(OUT_DIR .. name)
+  local function purge(dir)
+    for _, name in ipairs(love.filesystem.getDirectoryItems(dir) or {}) do
+      local path = dir .. name
+      local info = love.filesystem.getInfo(path)
+      if info and info.type == "directory" then
+        purge(path .. "/")
+        love.filesystem.remove(path)
+      else
+        love.filesystem.remove(path)
+      end
+    end
   end
+  purge(ROOT_DIR)
   love.filesystem.remove(STAMP)
 end
 

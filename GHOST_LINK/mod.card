@@ -18,6 +18,7 @@ return {
       "presence only: ghosts cannot be talked to, battled, traded with, or collided with, by design",
       "off unless POKEGHOST_HOST or POKEGHOST_JOIN is set -- installing it never opens a socket on its own",
       "a ghost exists only while that player is on the same map as you; different map means despawned, not hidden",
+      "closing the window, or returning to the title, removes your ghost from everyone else immediately; only a crash leaves one standing until enet's timeout",
       "ghosts trail your peer by their network latency plus up to one grid step, which on a LAN is not visible",
       "follower icons are archetypes, not portraits: the whole Bulbasaur line shows the GRASS icon unless you supply per-species art",
       "the engine's own link cable (trades, link battles) is untouched and still works",
