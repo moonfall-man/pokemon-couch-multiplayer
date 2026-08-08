@@ -86,6 +86,56 @@ callback is what makes the filter total.
   and therefore which physical device is pad #2.
 - `keypressed`, `keyreleased` — only when `POKEPORT_KEYBOARD=0`.
 
+Plus one thing that isn't a callback at all — see below.
+
+## The path that isn't an event
+
+Guarding the callbacks is necessary and **not sufficient**, because the engine
+also *polls*:
+
+```lua
+-- src/core/Input.lua
+function Input:reconcile()
+  ...
+  local ok, joysticks = pcall(js.getJoysticks)
+  for _, j in ipairs(joysticks) do
+    for button, btn in pairs(self.padBindings) do
+      local ok2, down = pcall(j.isGamepadDown, j, button)
+      if ok2 and down then press(self, btn, "pad:" .. button) end
+```
+
+Every joystick, no ownership test, pressing straight into `Input` rather than
+through `love.gamepadpressed` — so no wrapper anywhere near the callbacks can
+see it. It runs from `Game:focus` (on focus **gained**), `Game:onResume`, and
+`Game:recoverInput` on a hotplug. The symptom is that clicking a window makes
+it act on whatever the *other* player is holding.
+
+It exists for a good reason: a button release can be swallowed while the OS
+owns the event stream, so held buttons are rebuilt from the devices' ground
+truth rather than guessed.
+
+**This hid behind a second bug for a long time.** While the background-events
+hint was being set too late to work, SDL discarded presses for an unfocused
+window — and `SDL_PrivateJoystickButton` drops the internal state update along
+with the event, so `isGamepadDown` answered "not pressed" for another window's
+pad. Polling every device was harmless because the devices lied. Fixing the
+hint made them tell the truth, and this surfaced immediately.
+
+Rather than reimplement `reconcile`, the mod narrows what it can **see**: a
+filtered `love.joystick.getJoysticks` is swapped in for the duration of the
+call and restored afterwards, including if it throws. Whatever it polls — and
+whatever a future engine version adds to it — it can only poll pads this
+window owns.
+
+Measured in the real game, two pads, by handing the engine stand-in devices
+that record being polled:
+
+```
+                    with the wrap      without it
+pad id=1 (owned)    polled 10x         polled 10x
+pad id=2 (foreign)  polled  0x         polled 10x   <- the bug
+```
+
 Re-wrapping is prevented by identity rather than by a flag: the wrapper
 functions are recorded in a process-wide weak set, so the question asked is
 "is the callback currently installed already one of mine?" A boolean set
@@ -94,16 +144,29 @@ inside this chunk would be reset by the very reload it exists to detect.
 ## Background events
 
 SDL drops joystick events for an **unfocused** window unless
-`SDL_JOYSTICK_ALLOW_BACKGROUND_EVENTS` is set — which would leave exactly one
-player able to move at a time, whoever clicked last. The mod sets the hint
-over the FFI at load.
+`SDL_JOYSTICK_ALLOW_BACKGROUND_EVENTS` is set — which leaves exactly one
+player able to move at a time, whoever clicked last.
 
-Setting it that late still works, and not by luck: SDL registers a hint
-*callback* for this name when the joystick subsystem starts, and `SDL_SetHint`
-fires that callback, so the flag the event pump reads is updated on the spot
-rather than sampled once at init. If the symbol cannot be reached at all
-(a statically linked build), the mod logs `UNAVAILABLE` and everything else
-still works — you just have to click a window before its player can move.
+**Set it in the environment.** SDL reads its hints during `SDL_Init`, so
+`SDL_JOYSTICK_ALLOW_BACKGROUND_EVENTS=1` in the launching process is in force
+before the joystick subsystem exists. The launcher scripts do this.
+
+No Lua can match that, and it is later than it looks. This used to be set from
+`main.lua`'s chunk on the assumption that early in `main.lua` meant early.
+Measured at exactly that point in a real LÖVE 11.5 boot:
+
+```
+joystick module loaded : true
+joysticks enumerated   : 2
+window open            : true
+hint                   : (unset)
+```
+
+Everything the hint could influence had already happened. `allowBackgroundEvents()`
+remains as a fallback for a hand-started game, and returns `"env"` / `"ffi"` /
+`false` so the log says which route was taken — *"`SDL_SetHint` did not throw"*
+is a different claim from *"background pads work"*, and confusing the two is
+what let this sit broken.
 
 ## Limits worth knowing
 

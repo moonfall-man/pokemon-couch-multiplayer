@@ -149,6 +149,81 @@ if not PadOwner.keyboardEnabled then
   end
 end
 
+-- ------- the path that is not an event
+--
+-- Guarding love's callbacks is necessary and NOT sufficient, because the
+-- engine also POLLS. src/core/Input.lua:
+--
+--   function Input:reconcile()
+--     ...
+--     local ok, joysticks = pcall(js.getJoysticks)
+--     for _, j in ipairs(joysticks) do
+--       for button, btn in pairs(self.padBindings) do
+--         local ok2, down = pcall(j.isGamepadDown, j, button)
+--         if ok2 and down then press(self, btn, "pad:" .. button) end
+--
+-- Every joystick, no ownership test, pressing straight into Input rather than
+-- through love.gamepadpressed -- so no wrapper anywhere near the callbacks can
+-- see it. It runs from Game:focus (on focus GAINED), Game:onResume and
+-- Game:recoverInput (a hotplug), and it exists for a good reason: a release
+-- can be swallowed while the OS owns the event stream, so held buttons are
+-- rebuilt from the devices' ground truth (#799).
+--
+-- The symptom is that clicking a window makes it act on whatever the OTHER
+-- player is holding.
+--
+-- This hid for a long time behind a second bug. While the background-events
+-- hint was being set too late to work, SDL discarded presses for an unfocused
+-- window -- and SDL_PrivateJoystickButton drops the internal state update
+-- along with the event, so isGamepadDown answered "not pressed" for a pad
+-- belonging to another window. Polling every device was harmless because the
+-- devices lied. Fixing the hint made them tell the truth, and this surfaced.
+--
+-- Rather than reimplement reconcile, narrow what it can SEE: swap in a
+-- filtered getJoysticks for the duration of the call. Whatever it polls, and
+-- whatever a future version adds to it, it can only poll pads this window
+-- owns.
+if PadOwner.filtering then
+  local okInput, Input = pcall(require, "src.core.Input")
+  if okInput and type(Input) == "table" and type(Input.reconcile) == "function" then
+    if not wrappers[Input.reconcile] then
+      local inner = Input.reconcile
+      local outer = function(selfInput, ...)
+        local js = love.joystick
+        local real = js and js.getJoysticks
+        if not real then return inner(selfInput, ...) end
+
+        -- Resolve the binding through the REAL list first. owns(nil) forces
+        -- resolution and returns false, so this cannot bind to the filtered
+        -- view it is about to install.
+        PadOwner.owns(nil)
+
+        js.getJoysticks = function(...)
+          local all = real(...)
+          if type(all) ~= "table" then return all end
+          local mine = {}
+          for _, j in ipairs(all) do
+            if PadOwner.owns(j) then mine[#mine + 1] = j end
+          end
+          return mine
+        end
+
+        local ok, err = pcall(inner, selfInput, ...)
+        js.getJoysticks = real
+        if not ok then error(err, 0) end
+      end
+      wrappers[outer] = true
+      Input.reconcile = outer
+      wrapped[#wrapped + 1] = "Input:reconcile"
+    else
+      skipped[#skipped + 1] = "Input:reconcile"
+    end
+  else
+    mod.log:warn("could not reach Input:reconcile -- focusing a window may act "
+      .. "on another player's held buttons")
+  end
+end
+
 -- ------- background events
 --
 -- Without this, only the focused window gets pad input, which in split screen

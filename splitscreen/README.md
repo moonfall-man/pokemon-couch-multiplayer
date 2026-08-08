@@ -141,6 +141,11 @@ leave someone unable to press Start.
   so the version-select screen and the ROM importer see every pad. `play.ps1`
   sets `POKEPORT_GAME` so each window boots straight past both; the one time
   this bites is the very first run, before a ROM has been imported.
+- **Two engine paths, not one.** Controller input reaches the game through
+  `love`'s callbacks *and* through `Input:reconcile`, which polls every device
+  directly on focus gain. Both are filtered; if a future engine version adds a
+  third, the symptom to watch for is "clicking a window acts on the other
+  player's held buttons."
 - **Pad order is by SDL enumeration.** Each process enumerates independently.
   On one machine with a fixed set of pads this is consistent, but if two
   instances ever disagree they could grab the same pad. Binding by "press A on
@@ -158,10 +163,11 @@ mod installed alongside:
 | --- | --- |
 | Wrapping a `love.*` callback from a mod reaches real dispatch | `handlers dispatch reached wrapper: true` |
 | Fused save directory | `%APPDATA%\<identity>`, measured not assumed |
-| `PAD_OWNER` unit suite (modes, ownership, hotplug, wrapping) | 72/72 |
+| `PAD_OWNER` unit suite (modes, ownership, hotplug, wrapping, reconcile) | 81/81 |
 | In-game suite (load order, exports, live callbacks, dispatch) | 28/28 |
 | Inert with `POKEPORT_PAD` unset | 10/10 — registry never even created |
 | Both players boot with the voxel mod present | 0 loader errors, 9/9 callbacks wrapped |
+| Engine's own `Input:reconcile` polling | owned pad 10×, foreign pad **0×** |
 | `PAD_HOTKEYS` finds `PAD_OWNER` | resolved, not the legacy `src.core` path |
 | Two instances launched and tiled by `play.ps1` | 2×1, both booted straight into Red |
 | `SDL_JOYSTICK_ALLOW_BACKGROUND_EVENTS` | enabled in both processes |
