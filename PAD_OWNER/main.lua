@@ -152,14 +152,24 @@ end
 -- ------- background events
 --
 -- Without this, only the focused window gets pad input, which in split screen
--- means exactly one player can move at a time.  Best-effort over the FFI; see
--- lib/PadOwner.lua for why setting the hint this late still works.
+-- means exactly one player can move at a time.
+--
+-- "env" is the route that actually works and the one the launcher scripts
+-- take; "ffi" is the fallback for a hand-started game and is later than SDL
+-- would like.  See lib/PadOwner.lua.
 local background = PadOwner.allowBackgroundEvents()
 
-mod.log:info("%s, keyboard %s, background pad events %s",
+local backgroundNote =
+  background == "env" and "on (from the environment, before SDL started)"
+  or background == "ffi" and "set over the FFI -- LATE; if only the focused "
+      .. "window responds, launch via play.ps1 or export "
+      .. "SDL_JOYSTICK_ALLOW_BACKGROUND_EVENTS=1"
+  or "UNAVAILABLE (only the focused window will respond)"
+
+mod.log:info("%s, keyboard %s, background pad events: %s",
   PadOwner.describe(),
   PadOwner.keyboardEnabled and "on" or "muted",
-  background and "on" or "UNAVAILABLE (only the focused window will respond)")
+  backgroundNote)
 if #wrapped > 0 then
   mod.log:info("wrapped: %s", table.concat(wrapped, ", "))
 end

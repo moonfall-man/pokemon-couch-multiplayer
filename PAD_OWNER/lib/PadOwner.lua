@@ -113,18 +113,34 @@ function PadOwner.describe()
 end
 
 -- SDL drops joystick events for an UNFOCUSED window unless this hint is set,
--- which would leave every player but whoever clicked last unable to move.
--- LÖVE ships SDL2 as a shared library on desktop, so ffi.load can reach
--- SDL_SetHint.
+-- which leaves every player but whoever clicked last unable to move.
 --
--- Setting it this late -- from a mod, long after SDL_Init -- still takes:
--- SDL registers a hint CALLBACK for this name when the joystick subsystem
--- starts, and SDL_SetHint fires that callback, so the flag the event pump
--- reads is updated on the spot rather than sampled once at init.
+-- THE ENVIRONMENT IS THE RELIABLE ROUTE, and no Lua can match it.
 --
--- Best-effort: some builds already set it, and a static link makes the symbol
--- unreachable from here.  Returns true if the call went through.
+-- SDL reads its hints from the environment during SDL_Init, so
+-- SDL_JOYSTICK_ALLOW_BACKGROUND_EVENTS=1 in the launching process is in force
+-- before the joystick subsystem exists.  Setting it from Lua is always later
+-- than that -- and later than it looks.  This used to live at main.lua chunk
+-- level, on the assumption that being early in main.lua meant being early.
+-- Measured in a real LOVE 11.5 boot, at that exact point:
+--
+--     joystick module loaded : true
+--     joysticks enumerated   : 2
+--     window open            : true
+--     hint                   : (unset)
+--
+-- Everything the hint could influence had already happened.  So the launcher
+-- scripts export the variable, and this function is the fallback for someone
+-- starting the game by hand.  It reports which route was taken rather than
+-- just "true", because "the call did not throw" is not the same claim as
+-- "background pads work" -- confusing those two is what let this sit broken.
+--
+-- Returns: "env" | "ffi" | false
 function PadOwner.allowBackgroundEvents()
+  if (os.getenv("SDL_JOYSTICK_ALLOW_BACKGROUND_EVENTS") or "") ~= "" then
+    return "env"
+  end
+
   local ok, ffi = pcall(require, "ffi")
   if not (ok and ffi) then return false end
   pcall(ffi.cdef, [[ int SDL_SetHint(const char *name, const char *value); ]])
@@ -151,9 +167,9 @@ function PadOwner.allowBackgroundEvents()
   }
   for _, name in ipairs(names) do
     local okLib, C = pcall(ffi.load, name)
-    if okLib and try(C) then return true end
+    if okLib and try(C) then return "ffi" end
   end
-  return try(ffi.C)
+  return try(ffi.C) and "ffi" or false
 end
 
 return PadOwner

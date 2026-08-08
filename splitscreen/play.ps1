@@ -106,7 +106,26 @@ $saved = @{
   GHOST_JOIN   = $env:POKEGHOST_JOIN
   GHOST_PORT   = $env:POKEGHOST_PORT
   GHOST_SPRITE = $env:POKEGHOST_SPRITE
+  SDL_BG       = $env:SDL_JOYSTICK_ALLOW_BACKGROUND_EVENTS
 }
+
+# SDL drops joystick events for an UNFOCUSED window unless this is set, which
+# in split screen means only whoever clicked last can move.
+#
+# Set here, in the ENVIRONMENT, rather than from the mod. SDL reads its hints
+# from the environment during SDL_Init, so this is in force before the
+# joystick subsystem exists. A mod cannot get close to that: by the time any
+# Lua runs -- main.lua's own chunk included, which is where this used to live
+# -- the joystick module is loaded, both pads are enumerated and the window is
+# already open. Measured, not assumed:
+#
+#     at main.lua chunk level:  joysticks enumerated 2, window open true,
+#                               hint (unset)
+#     with this variable set:   hint 1
+#
+# PAD_OWNER still sets it over the FFI as a fallback for anyone launching the
+# game by hand, but this is the route that is actually early enough.
+$env:SDL_JOYSTICK_ALLOW_BACKGROUND_EVENTS = "1"
 
 # Each player's ghost body, so you can tell each other apart on screen. These
 # are ROM sprite ids that exist in every version (verified against the
@@ -167,6 +186,7 @@ try {
   $env:POKEGHOST_JOIN    = $saved.GHOST_JOIN
   $env:POKEGHOST_PORT    = $saved.GHOST_PORT
   $env:POKEGHOST_SPRITE  = $saved.GHOST_SPRITE
+  $env:SDL_JOYSTICK_ALLOW_BACKGROUND_EVENTS = $saved.SDL_BG
 }
 
 if ($NoTile) { Write-Host "`nLaunched (untiled)."; return }

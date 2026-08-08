@@ -105,6 +105,16 @@ if [ -n "$missing_cache" ]; then
 fi
 echo ""
 
+# SDL drops joystick events for an UNFOCUSED window unless this is set, which
+# in split screen means only whoever clicked last can move.
+#
+# Set in the ENVIRONMENT rather than from the mod. SDL reads its hints from the
+# environment during SDL_Init, so this is in force before the joystick
+# subsystem exists. No Lua can get close to that: by the time main.lua's own
+# chunk runs -- which is where this used to live -- the joystick module is
+# loaded, the pads are enumerated and the window is already open.
+export SDL_JOYSTICK_ALLOW_BACKGROUND_EVENTS=1
+
 # Ghost bodies, so players can tell each other apart on screen.
 SPRITES=(SPRITE_RED SPRITE_BLUE SPRITE_COOLTRAINER_M SPRITE_COOLTRAINER_F)
 
