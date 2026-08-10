@@ -4,25 +4,60 @@ Play Pokémon Red side by side — two to four people, one machine, one screen �
 on top of [gen1recomp](https://github.com/bryanthaboi/gen1recomp), the LÖVE2D
 reimplementation of Gen 1.
 
-**It's just mods.** Nothing is patched, unpacked or rebuilt — you drop three
-folders into `mods/` and run the official release, exactly the way you'd
-install the voxel mod.
+**One mod. Import it, set `PLAYERS`, press Play.**
 
-| mod | what it does |
-| --- | --- |
-| **[PAD_OWNER/](PAD_OWNER/)** | One controller per window — the piece that makes split screen possible at all |
-| **[GHOST_LINK/](GHOST_LINK/)** | See the other players walking around *your* world, with their Pokémon hovering behind them |
-| **[PAD_HOTKEYS/](PAD_HOTKEYS/)** | Reach the display hotkeys from a controller instead of the keyboard |
+```
+MODS -> Import mod .zip -> COUCH_MULTIPLAYER-0.2.0.zip
+MODS -> COUCH MULTIPLAYER -> OPTIONS.. -> PLAYERS: 2
+```
 
-Plus **[splitscreen/](splitscreen/)** — launcher scripts that install the mods
-and start 2–4 copies with the right environment, tiled.
+Quit, press Play, and the second window starts itself — its own save, its own
+controller, its own half of the screen, and you can see each other walking
+around. No scripts, no installer, no folders to copy.
+
+**`PLAYERS: 1` is the default and does nothing at all** — no extra window, no
+controller filtering, no socket. Installing this and playing alone is
+indistinguishable from not having it.
+
+→ **[COUCH_MULTIPLAYER/](COUCH_MULTIPLAYER/)** — the mod, and how it works
 
 ---
 
-## The problem, and the shape of the fix
+## What it does
 
-Launching the game twice doesn't work: SDL hands **every** controller's events
-to **every** listening process, and the engine discards the device —
+**Split screen, 2–4 players.** Separate saves, parties and progress. Not one
+window in quadrants — real independent games side by side, each answering to
+exactly one controller.
+
+**You can see each other.** A player on your map appears as a walking figure
+with their lead Pokémon hovering behind them. Presence only: you can't talk to,
+battle, trade with, block or be blocked by another player.
+
+That ceiling is deliberate. Gen 1's overworld has one script runner, one warp
+table, one encounter roll and one save; two players genuinely sharing those is
+a redesign of the game, not a mod. Presence is the part that's honestly
+additive.
+
+**Pokémon followers for all 151.** Gen 1 has *no walking overworld sprites for
+Pokémon* — the ROM has 73 character sheets and, in Yellow only,
+`SPRITE_PIKACHU`. So followers **hover** instead of walking, which needs one
+16×16 frame and no facings rather than six frames and four directions. That
+single change is what makes all 151 possible: the art is generated on first
+boot by shrinking the front battle sprites the game already extracted **from
+your own cartridge dump**, coloured with the game's own per-species palettes.
+
+**Display hotkeys on the pad.** The engine's digit toggles — and every mod
+pipeline that claims one, including the voxel mod's ladders — are keyboard
+only, which is useless on a couch. Bound to the buttons the engine leaves
+free: both stick clicks, X and Y.
+
+---
+
+## The problem underneath
+
+Launching the game twice doesn't work by itself. SDL hands **every**
+controller's events to **every** listening process, and the engine discards the
+device —
 
 ```lua
 -- src/core/Input.lua, upstream
@@ -32,190 +67,53 @@ function Input:gamepadpressed(joystick, button)
 end
 ```
 
-— so two pads press two games' buttons at once. **PAD_OWNER** adds the missing
-filter, and the launcher gives each copy its own save identity.
+— so two pads press two games' buttons at once. The mod adds the missing
+filter, on **both** paths the engine uses: the `love.*` callbacks, and
+`Input:reconcile`, which polls every joystick directly and bypasses callbacks
+entirely.
 
-That gets you two independent games. **GHOST_LINK** then makes them aware of
-each other, without sharing anything that could break either save.
-
-### This started as a patch, and didn't need to be
-
-`main.lua` defines `love.gamepadpressed` at chunk level; mods load later, from
-inside `love.load`. Reading that ordering, a mod looks hopelessly too late —
-so the project shipped a build step that spliced guards into `main.lua` and
-kept its anchors matching upstream forever.
-
-The flaw is that *"too late to define the callback"* and *"too late to **replace**
-it"* are different claims, and only the first is true. LÖVE never captures
-these functions at boot; `love.handlers` looks up `love.<name>` at the moment
-each event is dispatched. Checked in the real game rather than argued from
-source:
-
-```
-gamepadpressed defined at driver time: function
-handlers dispatch reached wrapper: true
-```
-
-The whole build step was working around a restriction that was never there.
-It's gone.
-
-## Ghosts, not co-op
-
-Everyone runs a **complete, independent game** — own save, own party, own
-progress. The only thing on the wire is where each player is standing. A player
-on your map appears as a walking figure; you can't talk to them, battle them,
-or block them. You walk straight through each other.
-
-That ceiling is deliberate. Gen 1's overworld has one script runner, one warp
-table, one encounter roll and one save; two players genuinely sharing those is
-a redesign of the game, not a mod. Presence is the part that's honestly
-additive.
-
-The trick is the engine's own: Yellow's companion Pikachu lives in `ow.npcs`
-with `passable = true`, so `Collision.occupied` skips it and the player walks
-straight through. Ghosts are built the same way.
-
-## Followers work with no art
-
-Gen 1 has **no walking overworld sprites for Pokémon** — the ROM has 73
-character sheets and, in Yellow only, `SPRITE_PIKACHU`.
-
-So followers **hover** instead of walking, which needs one 16×16 frame and no
-facings rather than six frames and four directions. That single change is what
-makes all 151 possible: the art is generated on first boot by shrinking the
-front battle sprites the game already extracted **from your own cartridge
-dump**, coloured with the game's own per-species palettes.
-
-Nothing is downloaded and nothing is redistributed. The generated frames land
-in your save directory, not in this repo.
+And it starts the other windows itself, which is possible because the fused
+build can find its own executable (`love.filesystem.getSource()`), shell out
+with per-child environment (`HostShell.popen`), and let every window tile
+*itself* (`love.window.setPosition`). See
+[COUCH_MULTIPLAYER/README.md](COUCH_MULTIPLAYER/README.md) for the rules it
+follows when doing that.
 
 ---
 
-## Getting started
+## Two people, two machines
 
-You supply a legally-dumped ROM and the official
-[gen1recomp release](https://github.com/bryanthaboi/gen1recomp/releases). Unzip
-it into `gen1recomp/` beside this README, then:
-
-```bash
-cd splitscreen; .\install.ps1 -Players 2
-```
-
-```bash
-.\play.ps1 -Players 2 -Ghosts
-```
-
-`install.ps1` copies the three mods into each player's folder and seeds
-player 1's ROM cache to everyone else. First run only: launch with
-`-Players 1`, import your ROM, quit, and re-run `install.ps1`.
-
-Longer versions, per platform:
-
-- **[splitscreen/README.md](splitscreen/README.md)** — Windows setup
-- **[splitscreen/linux/README.md](splitscreen/linux/README.md)** — Raspberry Pi / Linux
-- **[splitscreen/OTHER-PLATFORMS.md](splitscreen/OTHER-PLATFORMS.md)** — macOS, Batocera, and playing across machines over LAN
-- **[PAD_OWNER/README.md](PAD_OWNER/README.md)** — the controller filter
-- **[GHOST_LINK/README.md](GHOST_LINK/README.md)** — the presence mod
-- **[PAD_HOTKEYS/README.md](PAD_HOTKEYS/README.md)** — controller hotkeys
-
-### Double-click launchers
-
-If you'd rather not type anything, drop these in the repo root. They're
-gitignored — one line each, and they only wrap the scripts below:
-
-```bat
-@echo off
-REM play_2.bat -- two players, split screen, ghosts on
-cd /d "%~dp0splitscreen"
-powershell -NoProfile -ExecutionPolicy Bypass -File ".\play.ps1" -Players 2 -Ghosts
-if errorlevel 1 pause
-```
-
-Make one per player count (`play_1.bat` … `play_4.bat`, changing `-Players`),
-and an `install.bat` that runs `install.ps1` the same way. Keep the `pause` —
-without it a failure closes the window before you can read why.
-
-### Installing from inside the game
-
-The engine has its own mod manager, and it is the least painful route on a
-fresh machine — no scripts, no folders, and it updates itself afterwards.
-
-**MODS → Find mods → add an index**, and paste:
-
-```
-moonfall-man/pokemon-couch-multiplayer
-```
-
-All three mods appear; install the ones you want. The game ships with **no**
-index sources on purpose — adding one is a deliberate act of trusting whoever
-publishes it — so this is a one-time paste rather than something that is just
-there.
-
-Prefer not to trust a feed? **MODS → Import mod .zip**, or drag a
-[release](https://github.com/moonfall-man/pokemon-couch-multiplayer/releases)
-`.zip` onto the window. Same installer either way; a listing buys a mod no
-trust it wouldn't otherwise have.
-
-**One catch for split screen:** mods install into *the current save folder*,
-and each player has their own. The launcher's Play button uses
-`pokemon-love2d`, so a GUI install never reaches the per-player profiles by
-itself.
-
-Install whatever you like through the game, then mirror it out:
-
-```bash
-cd splitscreen; .\install.ps1 -Players 2 -Mirror
-```
-
-That copies every mod from `pokemon-love2d` to each player. It **merges and
-never prunes** — a player profile keeps mods the source doesn't have — and a
-plain `install.ps1` run tells you when there's something worth mirroring.
-
-Two mods can be individually fine and still refuse to share a game: the
-original voxel mod and its battle-art fork both claim the `voxel` render
-pipeline, so whichever loads second fails outright. Nothing in a manifest
-declares that, so there's an escape hatch:
-
-```bash
-.\install.ps1 -Players 2 -Mirror -Except DRAMATIC_SHAPE
-```
-
-### Installing by hand
-
-The scripts are convenience, not magic. All they do is copy folders:
-
-```
-%APPDATA%\<identity>\mods\PAD_OWNER\
-%APPDATA%\<identity>\mods\PAD_HOTKEYS\
-%APPDATA%\<identity>\mods\GHOST_LINK\
-```
-
-`<identity>` is `pokemon-love2d` for an ordinary install, or `gen1recomp-pN`
-per player under the launcher. On Linux and macOS the same folders live under
-`~/.local/share/` and `~/Library/Application Support/`.
-
-`PAD_OWNER` is completely inert unless `POKEPORT_PAD` is set, so installing it
-on a normal single-player copy changes nothing.
+Leave `PLAYERS` at 1 and use the `GHOSTS` row instead — `HOST` on one machine,
+`JOIN` plus the host's address on the other. Each person gets a full screen,
+and there's nothing to route.
 
 ---
+
+## Also here
+
+- **[splitscreen/](splitscreen/)** — the launcher scripts this replaces. Still
+  work, no longer needed for normal use. Useful if you want four players
+  driven from one command, or a setup the mod's own options don't cover.
+- **[tools/](tools/)** — packaging: builds the release `.zip` and the
+  "Find mods" index feed.
 
 ## What is deliberately not here
 
 **No ROM, and nothing derived from one.** No game data, no sprites, no audio.
-The mods ship code that *derives* from your own dump at runtime; the dump never
+The mod ships code that *derives* from your own dump at runtime; the dump never
 enters this repository. `.gitignore` enforces it.
 
-**No engine build, and no engine patch.** Everything here is a mod loaded by
-the official release you downloaded yourself. Nothing rewrites the game.
+**No engine build, and no engine patch.** Everything is a mod loaded by the
+official release you downloaded yourself.
 
 **No third-party mods or sprite packs.**
 
 ## Credits
 
-- [gen1recomp](https://github.com/bryanthaboi/gen1recomp) — the engine these
-  mods extend, and the source of every code excerpt quoted in these docs
-- [pret/pokered](https://github.com/pret/pokered) — the disassembly the engine's
-  data derives from
+- [gen1recomp](https://github.com/bryanthaboi/gen1recomp) — the engine this
+  extends, and the source of every code excerpt quoted in these docs
+- [pret/pokered](https://github.com/pret/pokered) — the disassembly the
+  engine's data derives from
 - The `passable` follower pattern is the engine's own, from its port of
   Yellow's `pikachu_follow.asm`
 

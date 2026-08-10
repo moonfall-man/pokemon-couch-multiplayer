@@ -33,7 +33,7 @@ $root = Split-Path -Parent (Split-Path -Parent $MyInvocation.MyCommand.Path)
 if ($OutDir -eq "") { $OutDir = Join-Path $root "dist" }
 New-Item -ItemType Directory -Path $OutDir -Force | Out-Null
 
-$MODS = @("PAD_OWNER", "PAD_HOTKEYS", "GHOST_LINK")
+$MODS = @("COUCH_MULTIPLAYER")
 
 # Files that are ours to develop with but not to ship. tools/ is Python for
 # regenerating data tables; nobody installing the mod runs it.

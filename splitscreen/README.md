@@ -1,4 +1,16 @@
-# Side-by-side multiplayer for gen1recomp
+# Launcher scripts (you probably don't need these)
+
+> **Superseded.** [COUCH_MULTIPLAYER](../COUCH_MULTIPLAYER) does all of this
+> from inside the game: set `PLAYERS` and press Play. It starts the other
+> windows, gives each its own save and controller, and tiles them — no scripts,
+> no installer, no folders to copy.
+>
+> These are kept because they still work and cover a few things the mod's
+> options don't: launching a specific player count from one command, seeding
+> profiles by hand, or debugging a setup where the mod isn't behaving.
+>
+> They also refer to `PAD_OWNER`, `GHOST_LINK` and `PAD_HOTKEYS`, the three
+> mods that were merged into one. `install.ps1` will not find them.
 
 Run up to 4 independent copies of the game at once, tiled on one screen, each
 with its own controller and its own saves. Two people, two pads, two windows,
@@ -8,7 +20,7 @@ This is **not** one window split into quadrants — it's N real game windows sid
 by side. See [Why not one window](#why-not-one-window) for what that would take.
 
 Nothing here patches or rebuilds the game. These are launcher scripts around
-the official release, plus three ordinary mods.
+the official release.
 
 ---
 

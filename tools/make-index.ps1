@@ -30,7 +30,7 @@ $root = Split-Path -Parent (Split-Path -Parent $MyInvocation.MyCommand.Path)
 if ($Out -eq "") { $Out = Join-Path $root "docs\index.json" }
 New-Item -ItemType Directory -Path (Split-Path -Parent $Out) -Force | Out-Null
 
-$MODS = @("PAD_OWNER", "PAD_HOTKEYS", "GHOST_LINK")
+$MODS = @("COUCH_MULTIPLAYER")
 
 $entries = @()
 foreach ($m in $MODS) {
