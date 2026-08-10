@@ -92,13 +92,72 @@ local ownedJoystick = nil
 local ownedID = nil
 local resolved = false
 
+-- ------- agreeing on which pad is "#1" ACROSS PROCESSES
+--
+-- This is the whole difficulty, and getting it wrong is subtle rather than
+-- loud: both windows answer to the same controller and the other one does
+-- nothing.
+--
+-- "Pad #2" cannot mean "second in love.joystick.getJoysticks()". That list is
+-- in SDL's enumeration order, which is per-process and set by the order
+-- devices are discovered while THAT process starts. The windows here are
+-- separate processes starting about a second apart, and nothing synchronises
+-- their discovery. When their orders disagree, pads[1] over here and pads[2]
+-- over there are the same physical device. It is a race, so it works most of
+-- the time, which is worse than never working.
+--
+-- So order by something every process computes the same: the device's own
+-- identity. GUID first (SDL's per-model id -- stable, and different for two
+-- different controllers), then vendor/product, then name. Enumeration
+-- position is the last resort and only breaks ties between devices that are
+-- identical by every one of those, i.e. two of the same controller -- where
+-- there is nothing left to tell them apart and it is no worse than before.
+local function sortKey(js, fallbackIndex)
+  local parts = {}
+
+  local function add(fn)
+    local ok, v = pcall(fn)
+    parts[#parts + 1] = (ok and v ~= nil) and tostring(v) or ""
+  end
+
+  if js.getGUID then add(function() return js:getGUID() end) end
+  if js.getDeviceInfo then
+    -- 11.3+: vendorID, productID, productVersion. Separates two models that
+    -- somehow share a GUID.
+    add(function()
+      local v, p, r = js:getDeviceInfo()
+      return ("%s:%s:%s"):format(tostring(v), tostring(p), tostring(r))
+    end)
+  end
+  if js.getName then add(function() return js:getName() end) end
+
+  -- Fixed width so the tie-break sorts numerically rather than "10" < "2".
+  parts[#parts + 1] = ("%04d"):format(fallbackIndex)
+  return table.concat(parts, "\0")
+end
+
+-- The joystick list in an order every process agrees on.
+function PadOwner.ordered()
+  if not (love and love.joystick and love.joystick.getJoysticks) then return {} end
+  local ok, list = pcall(love.joystick.getJoysticks)
+  if not ok or type(list) ~= "table" then return {} end
+
+  local keyed = {}
+  for i, js in ipairs(list) do
+    keyed[#keyed + 1] = { js = js, key = sortKey(js, i) }
+  end
+  table.sort(keyed, function(a, b) return a.key < b.key end)
+
+  local out = {}
+  for i, e in ipairs(keyed) do out[i] = e.js end
+  return out
+end
+
 local function resolve()
   resolved = true
   ownedJoystick, ownedID = nil, nil
   if mode ~= "index" then return end
-  if not (love and love.joystick and love.joystick.getJoysticks) then return end
-  local ok, list = pcall(love.joystick.getJoysticks)
-  if not ok or type(list) ~= "table" then return end
+  local list = PadOwner.ordered()
   local js = list[wantIndex]
   if not js then return end
   ownedJoystick = js
@@ -145,11 +204,7 @@ end
 --
 -- Returns: text, ok
 function PadOwner.status()
-  local n = 0
-  if love and love.joystick and love.joystick.getJoysticks then
-    local okList, list = pcall(love.joystick.getJoysticks)
-    if okList and type(list) == "table" then n = #list end
-  end
+  local n = #PadOwner.ordered()
 
   if mode == "all" then return ("all pads, %d seen"):format(n), n > 0 end
   if mode == "none" then return "no pad (keyboard only)", true end
@@ -164,6 +219,31 @@ function PadOwner.status()
     return ("pad #%d of %d seen -- NOT CONNECTED"):format(wantIndex, n), false
   end
   return ("pad #%d of %d seen, %s"):format(wantIndex, n, name), true
+end
+
+-- Every pad in the agreed order, marked with the one this window took.
+--
+-- Worth dumping in full rather than just the winner: the failure this is here
+-- to catch is TWO WINDOWS AGREEING, and you cannot see that in one window's
+-- status line. Put the two files side by side and the lists either match or
+-- they do not.
+function PadOwner.roster()
+  local lines = {}
+  for i, js in ipairs(PadOwner.ordered()) do
+    local nm, guid = "?", "?"
+    if js.getName then
+      local ok, v = pcall(function() return js:getName() end)
+      if ok and v then nm = v end
+    end
+    if js.getGUID then
+      local ok, v = pcall(function() return js:getGUID() end)
+      if ok and v then guid = tostring(v) end
+    end
+    lines[#lines + 1] = ("%s#%d %s [%s]")
+      :format(js == ownedJoystick and "*" or " ", i, nm, guid)
+  end
+  if #lines == 0 then return "(none)" end
+  return table.concat(lines, "  ")
 end
 
 -- SDL drops joystick events for an UNFOCUSED window unless this hint is set,

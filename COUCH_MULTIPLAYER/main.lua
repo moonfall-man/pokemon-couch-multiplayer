@@ -392,6 +392,9 @@ local function dumpStatus(myMap, cur)
     -- ends up unable to move, and they look identical from the couch.
     ("pad       : player %d of %d, %s, background=%s"):format(
       couch.index, couch.players, (PadOwner.status()), tostring(couch.bgroute)),
+    -- The full list, so two windows claiming the same device is visible by
+    -- putting their two status files next to each other. * marks this one's.
+    ("pads      : %s"):format(PadOwner.roster()),
     ("error     : %s"):format(tostring(t and t.error)),
   }
   pcall(function()
