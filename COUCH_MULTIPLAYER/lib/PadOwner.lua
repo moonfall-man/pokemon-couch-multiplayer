@@ -138,25 +138,34 @@ end
 -- SDL drops joystick events for an UNFOCUSED window unless this hint is set,
 -- which leaves every player but whoever clicked last unable to move.
 --
--- THE ENVIRONMENT IS THE RELIABLE ROUTE, and no Lua can match it.
+-- Two routes, and BOTH work.
 --
--- SDL reads its hints from the environment during SDL_Init, so
--- SDL_JOYSTICK_ALLOW_BACKGROUND_EVENTS=1 in the launching process is in force
--- before the joystick subsystem exists.  Setting it from Lua is always later
--- than that -- and later than it looks.  This used to live at main.lua chunk
--- level, on the assumption that being early in main.lua meant being early.
--- Measured in a real LOVE 11.5 boot, at that exact point:
+--   "env"  SDL_JOYSTICK_ALLOW_BACKGROUND_EVENTS=1 in the environment before
+--          SDL_Init.  This is what a spawned window gets, because whoever
+--          spawned it could set it; conf.lua and SDL both read the
+--          environment long before a mod exists.
+--   "ffi"  SDL_SetHint at runtime.  This is what player 1 needs -- a human
+--          double-clicked the game and set nothing.
 --
---     joystick module loaded : true
---     joysticks enumerated   : 2
---     window open            : true
---     hint                   : (unset)
+-- The ffi route being live is the whole reason player 1 can work at all, so
+-- it is worth saying why it is not too late.  SDL_JoystickInit registers a
+-- callback on this hint and caches the result in a flag; the per-event check
+-- reads that flag, and SDL_SetHint fires the callback again whenever it is
+-- called.  So a hint set after SDL_Init, after the window, after pads are
+-- enumerated, still governs the NEXT event.  Nothing here has to happen
+-- early -- it has to happen before somebody presses a button.
 --
--- Everything the hint could influence had already happened.  So the launcher
--- scripts export the variable, and this function is the fallback for someone
--- starting the game by hand.  It reports which route was taken rather than
--- just "true", because "the call did not throw" is not the same claim as
--- "background pads work" -- confusing those two is what let this sit broken.
+-- This file used to claim the opposite -- "THE ENVIRONMENT IS THE RELIABLE
+-- ROUTE, and no Lua can match it" -- on the strength of a boot probe that
+-- reported `hint : (unset)`.  That probe read the value BEFORE anything set
+-- it, so all it established was that the environment route had not been
+-- taken.  It said nothing about whether SDL_SetHint works, which is what the
+-- conclusion was about.  Believing it is why nothing called this function.
+--
+-- Reports which route was taken rather than just "true", because "the call
+-- did not throw" is not the same claim as "background pads work" --
+-- confusing those two is what let this sit broken once already.  The ffi
+-- route reads the hint back out of SDL rather than trusting the set.
 --
 -- Returns: "env" | "ffi" | false
 function PadOwner.allowBackgroundEvents()
@@ -166,14 +175,24 @@ function PadOwner.allowBackgroundEvents()
 
   local ok, ffi = pcall(require, "ffi")
   if not (ok and ffi) then return false end
-  pcall(ffi.cdef, [[ int SDL_SetHint(const char *name, const char *value); ]])
+  pcall(ffi.cdef, [[
+    int SDL_SetHint(const char *name, const char *value);
+    const char *SDL_GetHint(const char *name);
+  ]])
 
+  -- Set it, then ask SDL what it holds. A pcall that did not throw only says
+  -- the symbol resolved; the readback says the hint is actually in there.
   local function try(C)
     if not C then return false end
     local okSet = pcall(function()
       C.SDL_SetHint("SDL_JOYSTICK_ALLOW_BACKGROUND_EVENTS", "1")
     end)
-    return okSet
+    if not okSet then return false end
+    local okGet, got = pcall(function()
+      local p = C.SDL_GetHint("SDL_JOYSTICK_ALLOW_BACKGROUND_EVENTS")
+      return p ~= nil and ffi.string(p) or nil
+    end)
+    return okGet and got == "1"
   end
 
   -- One name per platform's convention, because ffi.load does no guessing:

@@ -1,6 +1,6 @@
 {
     "schema_version":  1,
-    "generated_at":  "2026-08-10T15:50:17Z",
+    "generated_at":  "2026-08-10T16:09:22Z",
     "categories":  [
                        "CONTROLS",
                        "MULTIPLAYER"
@@ -11,7 +11,7 @@
                      "folder":  "COUCH_MULTIPLAYER",
                      "title":  "COUCH MULTIPLAYER",
                      "author":  "moonfall-man",
-                     "version":  "0.2.1",
+                     "version":  "0.2.2",
                      "summary":  "Split screen on one PC -- set PLAYERS and load your save. Nothing else to install.",
                      "categories":  [
                                         "MULTIPLAYER"
@@ -28,7 +28,7 @@
                      "license":  "MIT",
                      "repo":  "https://github.com/moonfall-man/pokemon-couch-multiplayer",
                      "github":  "moonfall-man/pokemon-couch-multiplayer",
-                     "downloadURL":  "https://github.com/moonfall-man/pokemon-couch-multiplayer/releases/download/v0.2.1/COUCH_MULTIPLAYER-0.2.1.zip",
+                     "downloadURL":  "https://github.com/moonfall-man/pokemon-couch-multiplayer/releases/download/v0.2.2/COUCH_MULTIPLAYER-0.2.2.zip",
                      "api":  2,
                      "game_version":  "0.0.0-dev || \u003e=0.1.37 \u003c2.0.0",
                      "profile":  "content",

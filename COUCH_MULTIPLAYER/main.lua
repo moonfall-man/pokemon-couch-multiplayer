@@ -236,6 +236,26 @@ do
   if PadOwner.filtering then
     local wrapped = PadFilter.install(PadOwner)
     couch.wrapped = wrapped
+
+    -- Let this window hear its pad while another window has focus.
+    --
+    -- Only ONE window can be focused, so without this exactly one player can
+    -- move -- which is what "only one controller works" looks like from the
+    -- couch. A spawned window gets the variable from whoever spawned it and
+    -- returns "env" here; player 1 was opened by a human double-clicking the
+    -- game, nobody set anything for it, and it needs the call.
+    --
+    -- The launcher scripts used to export the variable for every player, so
+    -- this had no way to show up until they were retired.
+    --
+    -- Calling it here, long after SDL_Init, is not too late the way the
+    -- environment would be: SDL registers a callback on this hint when the
+    -- joystick subsystem starts and consults the flag it sets PER EVENT, so
+    -- a later SDL_SetHint takes effect on the next event. The note in
+    -- PadOwner used to claim otherwise on the strength of a probe that only
+    -- showed the environment variable was unset -- which is a different
+    -- thing from the hint not working.
+    couch.bgroute = PadOwner.allowBackgroundEvents()
   end
 end
 
@@ -368,6 +388,10 @@ local function dumpStatus(myMap, cur)
     ("received  : %s"):format(#counts > 0 and table.concat(counts, " ") or "(nothing)"),
     ("my id     : %s"):format(tostring(session.presence and session.presence.id)),
     ("followers : %d supplied, %d rom, %d icons"):format(followerArt, followerRom, followerIcons),
+    -- "which pad, and can it be heard unfocused" -- the two ways a player
+    -- ends up unable to move, and they look identical from the couch.
+    ("pad       : player %d of %d, %s, background=%s"):format(
+      couch.index, couch.players, PadOwner.describe(), tostring(couch.bgroute)),
     ("error     : %s"):format(tostring(t and t.error)),
   }
   pcall(function()

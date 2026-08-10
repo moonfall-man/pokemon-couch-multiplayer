@@ -7,7 +7,7 @@ reimplementation of Gen 1.
 **One mod. Import it, set `PLAYERS`, load your save.**
 
 ```
-MODS -> Import mod .zip -> COUCH_MULTIPLAYER-0.2.1.zip
+MODS -> Import mod .zip -> COUCH_MULTIPLAYER-0.2.2.zip
 MODS -> COUCH MULTIPLAYER -> OPTIONS.. -> PLAYERS: 2
 ```
 
