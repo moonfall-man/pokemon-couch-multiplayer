@@ -91,11 +91,13 @@ and there's nothing to route.
 
 ## Also here
 
-- **[splitscreen/](splitscreen/)** — the launcher scripts this replaces. Still
-  work, no longer needed for normal use. Useful if you want four players
-  driven from one command, or a setup the mod's own options don't cover.
 - **[tools/](tools/)** — packaging: builds the release `.zip` and the
   "Find mods" index feed.
+
+There used to be a `splitscreen/` folder of PowerShell and bash launchers, plus
+an installer that copied mod folders between save profiles. The mod does all of
+it from inside the game, so they're gone — they're in the history at `af53721`
+if anyone ever wants them.
 
 ## What is deliberately not here
 

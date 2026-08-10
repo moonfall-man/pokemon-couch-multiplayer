@@ -29,8 +29,8 @@ gen1recomp-*/
 # --------------------------------------------------------------- generated art
 # Follower frames are built from your ROM on first boot and live in the save
 # directory, but ignore the mod-local folder too in case anything lands there.
-GHOST_LINK/assets/followers/*.png
-GHOST_LINK/assets/followers/*.gif
+COUCH_MULTIPLAYER/assets/followers/*.png
+COUCH_MULTIPLAYER/assets/followers/*.gif
 
 # ----------------------------------------------------------------------- junk
 .DS_Store
@@ -46,17 +46,5 @@ __pycache__/
 # carry the same bytes in history as well.
 dist/
 
-# The pre-conversion patched build. It was an emergency escape hatch, and
-# keeping it around meant two play.ps1 scripts pointed at two different sets of
-# save profiles -- which is exactly the confusion it was supposed to end.
-# Rebuild it from commit 49136ba if it is ever needed again.
-splitscreen-legacy/
-*/love/
 pokemon-profile-backup/
 
-# ------------------------------------------------------------------ shortcuts
-# Double-click launchers generated for this machine. They only wrap
-# splitscreen\play.ps1 and install.ps1, so there is nothing here worth carrying
-# in history -- and their paths are local.
-/play_*.bat
-/install.bat
