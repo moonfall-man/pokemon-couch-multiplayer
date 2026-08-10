@@ -121,6 +121,7 @@ local Couch = V.require("Couch")
 local PadOwner = V.require("PadOwner")
 local PadFilter = V.require("PadFilter")
 local Hotkeys = V.require("Hotkeys")
+local Audio = V.require("Audio")
 
 local optionRows = {
   -- FIRST ROW, and the only one most people will ever touch.
@@ -168,6 +169,7 @@ local optionRows = {
       .. "party-menu icons instead, which are shared archetypes." },
 }
 
+for _, row in ipairs(Audio.schema()) do optionRows[#optionRows + 1] = row end
 for _, row in ipairs(Hotkeys.schema()) do optionRows[#optionRows + 1] = row end
 mod.options:define(optionRows)
 
@@ -257,6 +259,15 @@ do
     -- showed the environment variable was unset -- which is a different
     -- thing from the hint not working.
     couch.bgroute = PadOwner.allowBackgroundEvents()
+  end
+
+  -- Per-window volume. Installed only when it would CHANGE something: at
+  -- PLAYERS = 1 with both sliders at 100 this window sounds exactly like a
+  -- machine without the mod, and not one engine function is wrapped. A
+  -- slider moved later installs it then, from options_changed.
+  if Audio.read(opt, couch.index) then
+    couch.audio = Audio.install(mod)
+    Audio.refresh()
   end
 end
 
@@ -413,6 +424,8 @@ local function dumpStatus(myMap, cur)
     -- The full list, so two windows claiming the same device is visible by
     -- putting their two status files next to each other. * marks this one's.
     ("pads      : %s"):format(PadOwner.roster()),
+    ("audio     : %s%s"):format(Audio.describe(),
+      couch.audio and (" via " .. table.concat(couch.audio, ", ")) or " (not installed)"),
     -- The reconnect's own inputs. "Not reconnecting" has two very different
     -- causes -- it thinks the link is fine, or it is waiting out a backoff --
     -- and they are indistinguishable from the status line alone.
@@ -666,6 +679,14 @@ end
 
 mod.events:on("mod.options_changed", function(payload)
   if not (payload and payload.mod == mod.id) then return end
+
+  -- Volume first and unconditionally: it has nothing to do with the socket,
+  -- and a slider must be audible on the way out of the menu rather than at
+  -- the next song change.
+  if Audio.read(opt, couch.index) then
+    couch.audio = Audio.install(mod)
+  end
+  Audio.refresh()
 
   local before = connectionKey(config)
   local after = resolveConfig()

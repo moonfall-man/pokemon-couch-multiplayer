@@ -28,6 +28,9 @@ indistinguishable from not having it, and it is.
   from the battle sprites this game already extracted from *your* cartridge.
 - **Pad hotkeys.** The display toggles on the buttons the engine leaves free
   (both stick clicks, X, Y), so you can reach them from a couch.
+- **One soundtrack, private sound effects.** Music ducked to 20% in players
+  2–4, effects untouched everywhere. Per-window `MUSIC VOL` and `SFX VOL`
+  sliders, and `DUCK EXTRA` to turn the policy off.
 
 Presence only: you cannot talk to, battle, trade with, block or be blocked by
 another player. That's a deliberate ceiling — Gen 1's overworld has one script

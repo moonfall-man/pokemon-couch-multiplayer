@@ -1,7 +1,7 @@
 {
   "id": "COUCH_MULTIPLAYER",
   "name": "COUCH MULTIPLAYER",
-  "version": "0.2.5",
+  "version": "0.3.0",
   "api": 2,
   "github": "moonfall-man/pokemon-couch-multiplayer",
   "entry": "main.lua",
@@ -18,6 +18,6 @@
     "filesystem"
   ],
   "affects_link": false,
-  "description": "Play side by side on one PC. Set PLAYERS to 2 and press Play: this window becomes player 1, starts the others with their own saves and controllers, and tiles them. Each player sees the others walking around their own world with their lead Pokemon hovering behind, using art built from your own ROM. Nothing is shared -- separate saves, parties and progress -- and you cannot block or interact with each other. PLAYERS 1 is the default and does nothing at all: no extra window, no controller filtering, no socket. Also binds the display hotkeys to the pad buttons the engine leaves free, so you can reach them from a couch."
+  "description": "Play side by side on one PC. Set PLAYERS to 2 and load your save: this window becomes player 1, starts the others with their own saves and controllers, and tiles them. Each player sees the others walking around their own world with their lead Pokemon hovering behind, using art built from your own ROM. Nothing is shared -- separate saves, parties and progress -- and you cannot block or interact with each other. PLAYERS 1 is the default and does nothing at all: no extra window, no controller filtering, no socket. Also binds the display hotkeys to the pad buttons the engine leaves free, so you can reach them from a couch. Each window has its own music and sound-effect volume, and the music is quietened in the extra windows so the same track is not playing twice slightly out of step."
 }
 

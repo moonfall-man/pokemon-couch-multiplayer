@@ -7,7 +7,7 @@ reimplementation of Gen 1.
 **One mod. Import it, set `PLAYERS`, load your save.**
 
 ```
-MODS -> Import mod .zip -> COUCH_MULTIPLAYER-0.2.5.zip
+MODS -> Import mod .zip -> COUCH_MULTIPLAYER-0.3.0.zip
 MODS -> COUCH MULTIPLAYER -> OPTIONS.. -> PLAYERS: 2
 ```
 
@@ -55,6 +55,19 @@ your own cartridge dump**, coloured with the game's own per-species palettes.
 pipeline that claims one, including the voxel mod's ladders — are keyboard
 only, which is useless on a couch. Bound to the buttons the engine leaves
 free: both stick clicks, X and Y.
+
+**One soundtrack, private sound effects.** Four windows means four copies of
+the music starting a second apart, and the problem isn't loudness — it's
+*phasing*. So the music is ducked to 20% in players 2–4 and sound effects are
+left alone everywhere, because cries and menu beeps are how you know what
+*your* game is doing. Both are per-window sliders (`MUSIC VOL`, `SFX VOL`)
+and the ducking is a toggle, since that default is a guess about a living
+room you're better placed to judge than we are.
+
+Deliberately *not* tied to window focus. That's the obvious implementation
+and it's wrong here for the same reason the controller code needs
+`SDL_JOYSTICK_ALLOW_BACKGROUND_EVENTS`: on a couch the unfocused window isn't
+idle, it's the other player.
 
 ---
 
