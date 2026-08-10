@@ -4,15 +4,11 @@
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <style>
   :root { color-scheme: light dark; }
-  body {
-    font: 16px/1.6 system-ui, -apple-system, "Segoe UI", sans-serif;
-    max-width: 44rem; margin: 3rem auto; padding: 0 1.25rem;
-  }
+  body { font: 16px/1.6 system-ui, -apple-system, "Segoe UI", sans-serif;
+         max-width: 44rem; margin: 3rem auto; padding: 0 1.25rem; }
   code, pre { font-family: ui-monospace, "Cascadia Code", Consolas, monospace; }
-  pre {
-    background: color-mix(in srgb, currentColor 8%, transparent);
-    padding: .75rem 1rem; border-radius: .5rem; overflow-x: auto;
-  }
+  pre { background: color-mix(in srgb, currentColor 8%, transparent);
+        padding: .75rem 1rem; border-radius: .5rem; overflow-x: auto; }
   code { background: color-mix(in srgb, currentColor 8%, transparent);
          padding: .1rem .35rem; border-radius: .25rem; }
   pre code { background: none; padding: 0; }
@@ -24,52 +20,61 @@
 
 <h1>Couch multiplayer for gen1recomp</h1>
 
-<p>Three mods for
+<p>Play side by side on one PC, on top of
 <a href="https://github.com/bryanthaboi/gen1recomp">gen1recomp</a>.
-Play side by side on one screen, or see each other across a LAN.</p>
+<strong>One mod. Import it, set PLAYERS, press Play.</strong></p>
 
-<h2>Install from inside the game</h2>
+<h2>Install</h2>
 
-<p><strong>MODS → Find mods → add an index</strong>, and paste:</p>
+<p><strong>MODS &rarr; Find mods &rarr; add an index</strong>, and paste:</p>
 
 <pre><code>moonfall-man/pokemon-couch-multiplayer</code></pre>
 
-<p>All three appear; install what you want, and they update themselves
-afterwards. The game ships with no index sources on purpose — adding one is a
-deliberate act of trusting whoever publishes it.</p>
+<p>Then <strong>MODS &rarr; COUCH MULTIPLAYER &rarr; OPTIONS.. &rarr; PLAYERS: 2</strong>,
+quit, and press Play. The second window starts itself &mdash; its own save, its
+own controller, its own half of the screen.</p>
 
-<p class="muted">Prefer not to trust a feed? Use <strong>MODS → Import mod
-.zip</strong> with a file from
+<p class="muted">Prefer not to trust a feed? <strong>MODS &rarr; Import mod
+.zip</strong> with the file from
 <a href="https://github.com/moonfall-man/pokemon-couch-multiplayer/releases">Releases</a>,
-or drag it onto the window. Same installer either way.</p>
+or drag it onto the window. Same installer either way. The game ships with no
+index sources on purpose &mdash; adding one is a deliberate act of trusting
+whoever publishes it.</p>
 
-<h2>What's in here</h2>
+<h2>What it does</h2>
 
 <table>
-  <tr><th>PAD_OWNER</th><td>One controller per window — the piece that makes
-    split screen possible at all. Completely inert unless
-    <code>POKEPORT_PAD</code> is set, so it is safe to leave installed when
-    playing alone.</td></tr>
-  <tr><th>GHOST_LINK</th><td>See the other players walking around
-    <em>your</em> world, with their Pokémon hovering behind them. Presence
-    only: nothing about your save is shared, and no ghost can block you.</td></tr>
-  <tr><th>PAD_HOTKEYS</th><td>Reach the display hotkeys from a controller
-    instead of the keyboard.</td></tr>
+  <tr><th>Split screen</th><td>2&ndash;4 players, separate saves and parties,
+    one controller each. Real independent games side by side, not one window
+    in quadrants.</td></tr>
+  <tr><th>See each other</th><td>A player on your map appears as a walking
+    figure with their lead Pok&eacute;mon hovering behind. Presence only: you
+    cannot talk to, battle, trade with or block one another.</td></tr>
+  <tr><th>Pad hotkeys</th><td>The display toggles on the buttons the engine
+    leaves free &mdash; both stick clicks, X and Y.</td></tr>
 </table>
+
+<p><strong>PLAYERS: 1 is the default and does nothing at all</strong> &mdash; no
+extra window, no controller filtering, no socket. Installing this and playing
+alone is indistinguishable from not having it.</p>
+
+<h2>It starts the other windows itself</h2>
+
+<p>Worth being explicit, because a mod that launches processes deserves
+scrutiny. The rules: only ever this game's own executable, found through
+<code>love.filesystem.getSource()</code>, never a path from a file or the
+network; a started window is told it is a child and a child never starts
+anything; once per session.</p>
 
 <h2>You supply the ROM</h2>
 
 <p><strong>Nothing here contains game data.</strong> The follower sprites are
-generated on first boot from the art the game already extracted from your own
+generated on first boot from art the game already extracted from your own
 cartridge dump, and they live in your save folder. Nothing is downloaded and
 nothing is redistributed.</p>
 
-<p>GHOST_LINK stays off unless <code>POKEGHOST_HOST</code> or
-<code>POKEGHOST_JOIN</code> is set — installing it never opens a socket on its
-own.</p>
-
-<p class="muted">MIT licensed —
+<p class="muted">MIT licensed &mdash;
 <a href="https://github.com/moonfall-man/pokemon-couch-multiplayer">source on
-GitHub</a>. This grants you nothing regarding Pokémon, which is
+GitHub</a>. This grants you nothing regarding Pok&eacute;mon, which is
 Nintendo/Creatures/GAME FREAK's, and is not affiliated with or endorsed by
 them.</p>
