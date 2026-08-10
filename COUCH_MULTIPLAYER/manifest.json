@@ -1,7 +1,7 @@
 {
   "id": "COUCH_MULTIPLAYER",
   "name": "COUCH MULTIPLAYER",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "api": 2,
   "github": "moonfall-man/pokemon-couch-multiplayer",
   "entry": "main.lua",

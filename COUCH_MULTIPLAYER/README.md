@@ -1,6 +1,6 @@
 # COUCH MULTIPLAYER
 
-Play side by side on one PC. **Import the mod, set `PLAYERS` to 2, press Play.**
+Play side by side on one PC. **Import the mod, set `PLAYERS` to 2, load your save.**
 
 That's the whole setup. No scripts, no installer, no second copy of the game to
 configure, no folders to copy.

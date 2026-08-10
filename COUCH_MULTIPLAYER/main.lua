@@ -133,7 +133,8 @@ local optionRows = {
     description = "Split screen. 2 or more starts that many copies of the "
       .. "game side by side, one controller each, and links them so you can "
       .. "see each other. Plug every controller in BEFORE pressing Play. "
-      .. "Takes effect next launch." },
+      .. "Takes effect next launch: the extra windows open a second after "
+      .. "you load your save, not on the launcher." },
 
   -- For two people on two MACHINES. A couch session on one PC sets this for
   -- itself from PLAYERS, so most people never touch it.
@@ -175,17 +176,22 @@ local function opt(key)
   return nil
 end
 
--- Resolved lazily, at session start rather than at load: options.lua is not
--- guaranteed to be folded in while the entry chunk is still running.
 -- ------- the couch session
 --
 -- Everything the launcher scripts used to do, decided here instead: how many
 -- windows there are, which controller this one owns, where it sits on the
 -- screen, and who hosts the ghost link.
 --
--- Runs ONCE, at load. PLAYERS is read straight from the options store rather
--- than through resolveConfig, because that resolves lazily at the first tick
--- and the extra windows have to be on their way before then.
+-- Runs ONCE, as early as a mod can run at all -- which is Game:load, when a
+-- save is opened, NOT when the launcher's Play is pressed. The engine loads no
+-- mod entry chunk before that (src/mods/LauncherMods.lua says so in as many
+-- words), so the other windows cannot start any sooner than this line. They
+-- are handed POKEPORT_GAME so they boot straight in rather than opening a
+-- launcher of their own; see Couch.spawnOthers.
+--
+-- PLAYERS is read straight from the options store rather than through
+-- resolveConfig, which resolves at the first tick -- too late to still be
+-- starting windows.
 
 local couch = {
   index = Couch.playerIndex(),

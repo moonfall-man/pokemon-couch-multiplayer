@@ -1,6 +1,6 @@
 -- Sharing metadata, read by tooling and the manager detail pane.
 return {
-  summary = "Split screen on one PC -- set PLAYERS and press Play. Nothing else to install.",
+  summary = "Split screen on one PC -- set PLAYERS and load your save. Nothing else to install.",
   author = "moonfall-man",
   contact = "https://github.com/moonfall-man/pokemon-couch-multiplayer",
   tags = { "multiplayer", "splitscreen", "couch", "co-op", "ghosts", "followers", "controls" },

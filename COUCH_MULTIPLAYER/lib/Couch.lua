@@ -1,9 +1,12 @@
 -- Split screen without a launcher script.
 --
--- Set PLAYERS to 2 and press Play: this window becomes player 1, clones its
--- own profile to a derived one per extra player, starts them, and every
+-- Set PLAYERS to 2 and load your save: this window becomes player 1, clones
+-- its own profile to a derived one per extra player, starts them, and every
 -- window puts itself in its own quadrant. Nothing to install, nothing to run,
 -- no second copy of the game to configure.
+--
+-- "Load your save", not "press Play", and that is not a detail -- the engine
+-- runs no mod code at all until then. See spawnOthers.
 --
 -- ------- why this can work at all
 --
@@ -108,21 +111,6 @@ end
 -- megabytes of small files, and robocopy / cp do it in a fraction of the time
 -- a byte-wise Lua copy would take.
 
-local function shellCopyDir(from, to)
-  local HostShell = require("src.core.HostShell")
-  local cmd
-  if isWindows() then
-    -- /E all subdirs incl. empty, /NFL /NDL /NJH /NJS /NC /NS quiet, /R:1 one
-    -- retry. robocopy exits 1 for "copied ok", which is not a shell failure.
-    cmd = ('robocopy "%s" "%s" /E /R:1 /W:1 /NFL /NDL /NJH /NJS /NC /NS >nul 2>&1')
-      :format(from, to)
-  else
-    cmd = ('mkdir -p "%s" && cp -r "%s/." "%s/" 2>/dev/null'):format(to, from, to)
-  end
-  local p = HostShell.popen(cmd)
-  if p then HostShell.pclose(p) end
-end
-
 local function exists(path)
   local f = io.open(path, "rb")
   if f then f:close(); return true end
@@ -131,6 +119,53 @@ local function exists(path)
   if probe then probe:close(); return true end
   return false
 end
+
+local function shell(cmd)
+  local HostShell = require("src.core.HostShell")
+  local p = HostShell.popen(cmd)
+  if p then HostShell.pclose(p) end
+end
+
+local function shellCopyDir(from, to)
+  if isWindows() then
+    -- /E all subdirs incl. empty, /NFL /NDL /NJH /NJS /NC /NS quiet, /R:1 one
+    -- retry. robocopy exits 1 for "copied ok", which is not a shell failure.
+    shell(('robocopy "%s" "%s" /E /R:1 /W:1 /NFL /NDL /NJH /NJS /NC /NS >nul 2>&1')
+      :format(from, to))
+  else
+    shell(('mkdir -p "%s" && cp -r "%s/." "%s/" 2>/dev/null'):format(to, from, to))
+  end
+end
+
+-- LINK a read-only derived directory rather than copying it.
+--
+-- Used for the ROM cache only, and the reason is disk rather than time. The
+-- cache is 2.6 MB of the same bytes for every player, extracted once from the
+-- one cartridge dump and never written again; a junction is 16 ms against a
+-- 361 ms copy, which nobody would notice either way, but four players sharing
+-- one copy instead of holding four is worth having for free.
+--
+-- Not a fix for the wait before the second window -- see spawnOthers. A whole
+-- profile clones in 658 ms, measured, and that was never where the time went.
+--
+-- A junction (Windows, no admin needed) or a symlink (everywhere else).
+-- Falls back to a real copy when linking is refused -- some filesystems and
+-- some policies say no, and a slow start beats no start.
+--
+-- ONLY for data nothing writes to. Anything a player's own session modifies
+-- is genuinely copied, or one player would be editing another's files.
+local function linkOrCopyDir(from, to)
+  if exists(to) then return true end
+  if isWindows() then
+    shell(('mklink /J "%s" "%s" >nul 2>&1'):format(to, from))
+  else
+    shell(('ln -s "%s" "%s" 2>/dev/null'):format(from, to))
+  end
+  if exists(to) then return true end
+  shellCopyDir(from, to)
+  return exists(to)
+end
+
 
 -- Returns true when the destination looks ready to boot into a game.
 function Couch.cloneProfile(n)
@@ -143,13 +178,23 @@ function Couch.cloneProfile(n)
   -- and it is small.
   shellCopyDir(from .. sep .. "mods", to .. sep .. "mods")
 
-  -- ROM cache only when missing. It is the big one, and it never changes for
-  -- a given cartridge.
+  -- The ROM cache, linked rather than copied -- see linkOrCopyDir.
   local GameVersion = require("src.core.GameVersion")
   local version = (GameVersion.get and GameVersion.get()) or "red"
-  local marker = to .. sep .. version .. sep .. "rom-cache.complete"
-  if not exists(marker) then
-    shellCopyDir(from .. sep .. version, to .. sep .. version)
+  linkOrCopyDir(from .. sep .. version, to .. sep .. version)
+
+  -- The generated follower frames -- COPIED, not linked, deliberately.
+  --
+  -- Without them a new player rebuilds all 151 by shrinking battle sprites on
+  -- its first boot into the world, and pays for it while its own screen waits.
+  -- Handing over a finished cache costs nothing: the whole set is 26 KB.
+  --
+  -- Linking it would be wrong even though the bytes are identical. This mod
+  -- WRITES here -- RomFollowers.checkCacheVersion calls clear() on a version
+  -- bump -- and through a junction that is one player deleting another's
+  -- cache, with both then regenerating into the same files at once.
+  if exists(from .. sep .. "ghostlink") then
+    shellCopyDir(from .. sep .. "ghostlink", to .. sep .. "ghostlink")
   end
 
   -- options.lua carries the display settings -- notably which render
@@ -169,12 +214,34 @@ function Couch.cloneProfile(n)
     end
   end
 
-  return exists(marker)
+  return exists(to .. sep .. version .. sep .. "rom-cache.complete")
 end
 
 -- ------- starting the others
+--
+-- WHEN this can happen is not our choice. The engine loads a mod's entry
+-- chunk in Game:load -- after a save is picked -- and says so itself:
+--
+--   -- Launcher-side mod surface: the mods panel runs BEFORE Game:load, so
+--   -- this NEVER loads a mod entry chunk -- it scans manifests only.
+--   src/mods/LauncherMods.lua
+--
+-- So no mod code of any kind runs while the launcher is on screen, and the
+-- earliest a second window can start is the moment player 1 enters the world.
+-- Nothing here can beat that; what it CAN do is make the gap the only gap,
+-- which is what POKEPORT_GAME below is for.
 
 local spawned = false
+
+-- The version this session is playing, for POKEPORT_GAME.
+local function currentVersion()
+  local ok, GameVersion = pcall(require, "src.core.GameVersion")
+  if ok and GameVersion and GameVersion.get then
+    local v = GameVersion.get()
+    if type(v) == "string" and v ~= "" then return v end
+  end
+  return nil
+end
 
 -- opts: { players, game, ghostPort, ghosts }
 function Couch.spawnOthers(opts)
@@ -209,7 +276,20 @@ function Couch.spawnOthers(opts)
       -- which is the whole reason the launcher script set it there too
       { "SDL_JOYSTICK_ALLOW_BACKGROUND_EVENTS", "1" },
     }
-    if opts.game then vars[#vars + 1] = { "POKEPORT_GAME", opts.game } end
+    -- Straight into the game, past the launcher.
+    --
+    -- Without this the second window opens on the title screen and sits
+    -- there until somebody walks over and clicks Play -- which reads as the
+    -- window being late rather than being ready, because player 1 is already
+    -- walking around by then. POKEPORT_GAME is the engine's own
+    -- desktop-shortcut path (LaunchOptions.resolve): it boots the version
+    -- directly, on that profile's own previous save slot, and falls back to
+    -- the launcher by itself if that version is not imported here yet.
+    --
+    -- Which version comes from THIS session, so player 2 lands in the same
+    -- game player 1 just opened rather than whatever they last played.
+    local game = opts.game or currentVersion()
+    if game then vars[#vars + 1] = { "POKEPORT_GAME", game } end
     if opts.ghosts then
       vars[#vars + 1] = { "POKEGHOST_JOIN", "127.0.0.1:" .. tostring(opts.ghostPort or 7778) }
     end

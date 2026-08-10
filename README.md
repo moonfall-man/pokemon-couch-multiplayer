@@ -4,16 +4,21 @@ Play Pokémon Red side by side — two to four people, one machine, one screen �
 on top of [gen1recomp](https://github.com/bryanthaboi/gen1recomp), the LÖVE2D
 reimplementation of Gen 1.
 
-**One mod. Import it, set `PLAYERS`, press Play.**
+**One mod. Import it, set `PLAYERS`, load your save.**
 
 ```
-MODS -> Import mod .zip -> COUCH_MULTIPLAYER-0.2.0.zip
+MODS -> Import mod .zip -> COUCH_MULTIPLAYER-0.2.1.zip
 MODS -> COUCH MULTIPLAYER -> OPTIONS.. -> PLAYERS: 2
 ```
 
-Quit, press Play, and the second window starts itself — its own save, its own
-controller, its own half of the screen, and you can see each other walking
-around. No scripts, no installer, no folders to copy.
+Open your save and the second window starts itself, about a second behind —
+its own save, its own controller, its own half of the screen, and you can see
+each other walking around. No scripts, no installer, no folders to copy.
+
+It's the **save** that starts it, not the launcher's Play button: gen1recomp
+runs no mod code until a game is loaded, so nothing can happen while the
+launcher is still on screen. The window it opens boots straight into the game
+rather than showing a second launcher, so the only wait is that one second.
 
 **`PLAYERS: 1` is the default and does nothing at all** — no extra window, no
 controller filtering, no socket. Installing this and playing alone is
