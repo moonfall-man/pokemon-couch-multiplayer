@@ -391,7 +391,7 @@ local function dumpStatus(myMap, cur)
     -- "which pad, and can it be heard unfocused" -- the two ways a player
     -- ends up unable to move, and they look identical from the couch.
     ("pad       : player %d of %d, %s, background=%s"):format(
-      couch.index, couch.players, PadOwner.describe(), tostring(couch.bgroute)),
+      couch.index, couch.players, (PadOwner.status()), tostring(couch.bgroute)),
     ("error     : %s"):format(tostring(t and t.error)),
   }
   pcall(function()

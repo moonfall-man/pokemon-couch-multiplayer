@@ -135,6 +135,37 @@ function PadOwner.describe()
   return ("pad #%d"):format(wantIndex)
 end
 
+-- describe() says which pad this window WANTS. This says whether it got one.
+--
+-- Those are not the same, and the difference is the single most confusing
+-- failure here: "pad #2" reads like success right up until you notice SDL
+-- only enumerated one device, at which point the window is bound to nothing
+-- and the player cannot move. A pad that is unplugged, asleep, paired but
+-- not connected, or plugged in after launch all land here.
+--
+-- Returns: text, ok
+function PadOwner.status()
+  local n = 0
+  if love and love.joystick and love.joystick.getJoysticks then
+    local okList, list = pcall(love.joystick.getJoysticks)
+    if okList and type(list) == "table" then n = #list end
+  end
+
+  if mode == "all" then return ("all pads, %d seen"):format(n), n > 0 end
+  if mode == "none" then return "no pad (keyboard only)", true end
+
+  if not resolved then resolve() end
+  local name = "?"
+  if ownedJoystick and ownedJoystick.getName then
+    local okN, got = pcall(function() return ownedJoystick:getName() end)
+    if okN and got then name = got end
+  end
+  if not ownedJoystick then
+    return ("pad #%d of %d seen -- NOT CONNECTED"):format(wantIndex, n), false
+  end
+  return ("pad #%d of %d seen, %s"):format(wantIndex, n, name), true
+end
+
 -- SDL drops joystick events for an UNFOCUSED window unless this hint is set,
 -- which leaves every player but whoever clicked last unable to move.
 --
