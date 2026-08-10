@@ -1,0 +1,31 @@
+-- Sharing metadata, read by tooling and the manager detail pane.
+return {
+  summary = "Split screen on one PC -- set PLAYERS and press Play. Nothing else to install.",
+  author = "moonfall-man",
+  contact = "https://github.com/moonfall-man/pokemon-couch-multiplayer",
+  tags = { "multiplayer", "splitscreen", "couch", "co-op", "ghosts", "followers", "controls" },
+  differences = {
+    changed = {
+      "nothing about your own game: no shared saves, party, flags, scripts, encounters or battles",
+    },
+    added = {
+      "PLAYERS 2-4 starts that many copies side by side, each with its own save, controller and quadrant",
+      "other players appear as walking figures on maps you share with them",
+      "each player's lead Pokemon hovers behind them -- all 151 species, built from your own ROM's battle sprites",
+      "the display hotkeys on the pad buttons the engine leaves free (both stick clicks, X and Y)",
+    },
+    known = {
+      "PLAYERS 1 is the default and does nothing at all: no extra window, no controller filtering, no socket",
+      "at 2+ this mod STARTS OTHER COPIES of the game -- only ever this game's own executable, and a started copy can never start more",
+      "presence only: you cannot talk to, battle, trade with or collide with another player, by design",
+      "plug every controller in BEFORE pressing Play; pads are claimed in SDL's enumeration order",
+      "a player exists on your screen only while they are on your map -- different map means despawned, not hidden",
+      "takes effect on the next launch, since extra windows are started as the game boots",
+      "the engine's own link cable (trades, link battles) is untouched and still works",
+    },
+  },
+  credits = {
+    { who = "pret/pokered", for_ = "the sprite and map data the ghosts are drawn from" },
+  },
+  compat = { engine = ">=0.1.37 <2.0.0", modApi = 2 },
+}
