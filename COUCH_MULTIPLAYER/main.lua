@@ -141,8 +141,9 @@ local optionRows = {
   { key = "role", type = "choice", label = "GHOSTS", default = "off",
     choices = { { "OFF", "off" }, { "HOST", "host" }, { "JOIN", "join" } },
     description = "See other players walking around your world. HOST opens a "
-      .. "session; JOIN dials the address below. Off by default, and the "
-      .. "launcher's -Ghosts flag overrides this row." },
+      .. "session; JOIN dials the address below. IGNORED when PLAYERS is 2 or "
+      .. "more -- a split screen links itself, player 1 hosting. This row is "
+      .. "for two people on two PCs." },
   { key = "address", type = "text", label = "GHOST ADDR", default = "127.0.0.1",
     description = "Who to dial when GHOSTS is JOIN. 127.0.0.1 is another copy "
       .. "on this same PC; otherwise the host's LAN address." },
@@ -349,6 +350,23 @@ local function start()
       session.status, followerArt, followerRom, followerIcons)
 end
 
+-- ------- reconnect state
+--
+-- Up here rather than beside retryJoin because dumpStatus reports these and
+-- is defined first. A local declared further down is a nil global to
+-- everything above it, and comparing that to a number is an error rather
+-- than a wrong answer.
+--
+-- A live peer transmits at least every PING_EVERY, so SILENCE at three times
+-- that means the far end is really gone. Measured, not assumed: destroying
+-- the host left the joiner still reporting peers=1, so peer count alone would
+-- never have fired the reconnect.
+local RETRY_EVERY = 3
+local SILENCE = 12
+local PING_EVERY = 4
+local nextRetry = 0
+local nextPing = 0
+
 -- ------- live status dump
 --
 -- Written to the save directory a couple of times a second so a session can
@@ -395,6 +413,16 @@ local function dumpStatus(myMap, cur)
     -- The full list, so two windows claiming the same device is visible by
     -- putting their two status files next to each other. * marks this one's.
     ("pads      : %s"):format(PadOwner.roster()),
+    -- The reconnect's own inputs. "Not reconnecting" has two very different
+    -- causes -- it thinks the link is fine, or it is waiting out a backoff --
+    -- and they are indistinguishable from the status line alone.
+    ("link      : silence=%s retry_in=%s"):format(
+      (t and t.lastRx)
+        and ("%.1fs"):format(((love.timer and love.timer.getTime and love.timer.getTime()) or 0) - t.lastRx)
+        or "never",
+      (nextRetry > 0)
+        and ("%.1fs"):format(nextRetry - ((love.timer and love.timer.getTime and love.timer.getTime()) or 0))
+        or "-"),
     ("error     : %s"):format(tostring(t and t.error)),
   }
   pcall(function()
@@ -414,6 +442,74 @@ local function stop()
   session.status = "closed"
 end
 
+-- ------- keeping a joined window connected
+--
+-- A window that JOINS used to get exactly one attempt. If it missed -- host
+-- not listening yet, host restarted, cable out and back -- it stayed dark
+-- forever with no way back short of quitting.
+--
+-- That is not a rare corner on a split screen. The host is a sibling process
+-- that started about a second earlier, so losing the race is ordinary, and
+-- anything that rebuilds the host's socket drops every joiner at once.
+--
+-- Only the JOIN side retries. A host has nothing to retry -- it is listening
+-- or it failed to bind, and rebinding on a loop would just fight whatever
+-- took the port.
+
+-- Say "still here" whether or not I am in the overworld, so that going quiet
+-- means something. Presence only transmits while walking around, so without
+-- this a window at a menu or on the title screen is indistinguishable from a
+-- window whose process is gone.
+local function heartbeat(now)
+  local t = session.transport
+  if not t or t.closed then return end
+  if not session.presence then return end
+  if now < nextPing then return end
+  nextPing = now + PING_EVERY
+  pcall(function() t:send(Wire.ping(session.presence.id)) end)
+end
+
+local function retryJoin()
+  if config.role ~= "join" then return end
+  local t = session.transport
+  if not t or t.closed then return end
+
+  local now = (love and love.timer and love.timer.getTime and love.timer.getTime()) or 0
+  local silent = t.lastRx ~= nil and (now - t.lastRx) > SILENCE
+  if t:peerCount() > 0 and not silent then
+    nextRetry = 0
+    -- Back in touch after a redial: say so, rather than leaving the dump
+    -- reading "rejoining" for the rest of the session.
+    local was = session.status or ""
+    if was:match("^rejoining") or was:match("^waiting") then
+      session.status = "joined " .. tostring(config.join)
+    end
+    return
+  end
+
+  if nextRetry == 0 then nextRetry = now + RETRY_EVERY; return end
+  if now < nextRetry then return end
+  nextRetry = now + RETRY_EVERY
+
+  -- Rebuild rather than reuse: a peer that failed to connect is spent, and
+  -- ENet gives no way to re-arm one.
+  pcall(function() t:close() end)
+  local fresh = Transport.new()
+  if fresh:join(config.join) then
+    session.transport = fresh
+    -- New socket, so the hello has to go out again -- the peer on the other
+    -- end has never heard of us.
+    if session.presence then
+      session.presence.helloSent = false
+      session.presence:armResend()
+    end
+    session.status = "rejoining " .. tostring(config.join)
+  else
+    session.transport = fresh   -- keep pumping; the next retry replaces it
+    session.status = "waiting for host at " .. tostring(config.join)
+  end
+end
+
 -- ------- the tick
 --
 -- input.step runs once per fixed step from EVERY state -- overworld, battle,
@@ -430,6 +526,12 @@ mod.hooks:wrap("input.step", function(next, game, dt)
   pcall(Hotkeys.step, game, opt, PadOwner.filtering and PadOwner.owns or nil)
 
   start()   -- resolves config on the first tick; a no-op thereafter
+
+  -- BOTH roles beat. The joiner is listening for the host's, so a host that
+  -- only pinged while its player was walking around would still look dead
+  -- from a menu -- which was the whole bug.
+  heartbeat((love and love.timer and love.timer.getTime and love.timer.getTime()) or 0)
+  retryJoin()
 
   -- Your own Pokemon follows you whether or not anyone else is connected --
   -- this is the half of the mod that needs no network.
@@ -504,7 +606,10 @@ mod.hooks:wrap("input.step", function(next, game, dt)
     if msg and pool then
       -- Never let a peer's message stand in for my own player.
       if msg.id ~= (session.presence and session.presence.id) then
-        if msg.t == "sync" then
+        if msg.t == "ping" then
+          -- Nothing to do. Its arrival already did the job: Transport stamped
+          -- lastRx, which is what tells the reconnect the far end is alive.
+        elseif msg.t == "sync" then
           -- Someone changed map and lost sight of everyone. Re-announce.
           if session.presence then session.presence:armResend() end
         else
@@ -544,13 +649,48 @@ end)
 
 -- ------- live reconfiguration
 --
--- Changing a row in the mod manager tears the session down and lets the next
--- tick build it again from the new values, so switching HOST/JOIN or a body
--- sprite takes effect without a restart.
+-- Changing ANY row used to tear the session down and let the next tick build
+-- it again. That is correct for HOST/JOIN and the address, and badly wrong
+-- for everything else: on the HOST, stop() destroys the socket every other
+-- player is connected to. Opening OPTIONS on a split screen to change your
+-- trainer image therefore dropped the other player, and nothing brought them
+-- back -- see the retry in the tick.
+--
+-- So only rebuild for what the SOCKET depends on. A body sprite, a follower
+-- toggle, a marker toggle are travelling in messages, not baked into the
+-- connection, and can be swapped underneath a live session.
+local function connectionKey(cfg)
+  return table.concat({ tostring(cfg.role), tostring(cfg.join),
+                        tostring(cfg.port) }, "\0")
+end
+
 mod.events:on("mod.options_changed", function(payload)
   if not (payload and payload.mod == mod.id) then return end
-  stop()
-  session.attempted = false
+
+  local before = connectionKey(config)
+  local after = resolveConfig()
+
+  if connectionKey(after) ~= before or not session.transport then
+    stop()
+    session.attempted = false
+    return
+  end
+
+  -- Same connection: keep it, and re-dress everything hanging off it.
+  config = after
+  if session.presence then
+    session.presence.sprite = config.sprite
+    session.presence.name = config.name
+    -- Peers cached the old sprite in their pool when they saw the hello, so
+    -- say it again or the change only shows up on your own screen.
+    session.presence:armResend()
+    session.presence.helloSent = false
+  end
+  if session.pool then
+    session.pool.bodySprite = config.sprite
+    session.pool.followers = config.follower
+    session.pool.marker = config.marker
+  end
 end)
 
 -- Returning to the title tears the world down under any spawned ghost, so

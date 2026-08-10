@@ -49,6 +49,16 @@ function Transport.new()
     closed = false,
     error = nil,
     address = nil,
+    -- When anything last arrived. A host that is destroyed rather than
+    -- disconnected -- which is how close() deliberately works, so a parting
+    -- bye is not thrown away with the connection -- leaves the other end
+    -- still reporting a live peer. Silence is the only prompt signal that it
+    -- is gone; peerCount() keeps saying 1 until ENet's own timeout, half a
+    -- minute later.
+    -- nil, not 0: 0 is a real reading from love.timer.getTime() early in a
+    -- boot, so a sentinel inside the value's own range cannot be told from
+    -- data. nil means "nothing has ever arrived".
+    lastRx = nil,
   }, Transport)
 end
 
@@ -176,6 +186,8 @@ function Transport:update()
       return
     end
     if not event then break end
+    self.lastRx = (love and love.timer and love.timer.getTime
+                   and love.timer.getTime()) or os.time()
 
     if event.type == "connect" then
       self.peers[event.peer] = true

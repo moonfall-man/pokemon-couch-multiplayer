@@ -94,6 +94,21 @@ function Wire.bye(id)
   return { t = "bye", id = id }
 end
 
+-- "I am still here", sent whatever the sender is doing.
+--
+-- Every other message is about being in the overworld, so a player at a menu,
+-- in a battle menu, on the title screen or in the ROM importer transmits
+-- NOTHING. That makes going quiet ambiguous, and the joiner's reconnect has
+-- to tell two cases apart: the host process is gone (redial) versus nobody
+-- happens to be walking around (do nothing). Measured the difference the hard
+-- way -- without this, two windows sitting on the title screen looked exactly
+-- like a dead host and the joiner redialled every few seconds forever.
+--
+-- Carries nothing but the sender id. Its whole job is to arrive.
+function Wire.ping(id)
+  return { t = "ping", id = id }
+end
+
 -- Anything off the wire is untrusted: a malformed or hostile message must
 -- not reach spawnNpc with a nil sprite (NPC.new asserts on an unknown sprite
 -- id and would take the whole game down). Every field is checked here so the
@@ -145,7 +160,7 @@ function Wire.validate(msg)
     if type(msg.battling) ~= "boolean" then return nil, "bad battling flag" end
     return msg
 
-  elseif t == "sync" or t == "bye" then
+  elseif t == "sync" or t == "bye" or t == "ping" then
     return msg
   end
 
