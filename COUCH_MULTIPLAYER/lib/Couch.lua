@@ -317,12 +317,39 @@ function Couch.spawnOthers(opts)
   return started
 end
 
+-- ------- how is this window actually doing
+
+function Couch.describeMode()
+  local fps = (love.timer and love.timer.getFPS and love.timer.getFPS()) or 0
+  local w, h, flags = 0, 0, {}
+  if love.window and love.window.getMode then
+    local ok, a, b, c = pcall(love.window.getMode)
+    if ok then w, h, flags = a or 0, b or 0, c or {} end
+  end
+  local cap = "?"
+  local okF, FrameCap = pcall(require, "src.core.FrameCap")
+  if okF and FrameCap and FrameCap.current then cap = tostring(FrameCap.current) end
+  return ("%dfps cap=%s %dx%d vsync=%s msaa=%s")
+    :format(fps, cap, w, h, tostring(flags.vsync), tostring(flags.msaa))
+end
+
 -- ------- putting this window in its place
 --
 -- Each instance tiles ITSELF from its own player number: 1x2 for two players,
 -- 2x2 for three or four. No window enumeration, no waiting for someone else's
 -- window to exist, and it works the same on every platform.
-function Couch.tileSelf(index, total)
+-- vsync: "auto" | "on" | "off". auto means OFF for a split screen.
+--
+-- Two windows both waiting on the same display's vblank do not share it
+-- gracefully -- the compositor serves the foreground one and the other waits,
+-- which is why "great for player 1, not so much for player 2" is the usual
+-- report rather than "both a bit slower". With vsync off, love.run paces from
+-- the engine's own FrameCap instead and the windows stop queueing behind each
+-- other.
+--
+-- Single player is left exactly as the engine shipped it. Whatever this
+-- costs or buys, someone playing alone did not sign up for it.
+function Couch.tileSelf(index, total, vsyncMode)
   if not (love.window and love.window.getDesktopDimensions) then return false end
   total = math.max(1, math.min(total or 1, Couch.MAX_PLAYERS))
   if total < 2 then return false end
@@ -338,7 +365,30 @@ function Couch.tileSelf(index, total)
   local col = (index - 1) % cols
   local row = math.floor((index - 1) / cols)
 
-  pcall(love.window.setMode, w, h, { resizable = true, borderless = false })
+  -- START FROM THE CURRENT FLAGS. setMode does not merge -- every flag left
+  -- out reverts to a library default, which is not obvious and is not what
+  -- anyone means by "resize the window". Measured in LOVE 11.5: a window at
+  -- vsync=0 msaa=4 minwidth=480, given setMode(w, h, {resizable = true}),
+  -- comes back vsync=1 msaa=0 minwidth=1. This used to pass exactly that,
+  -- so tiling quietly reset three settings it had no business touching.
+  local flags = {}
+  if love.window.getMode then
+    local okM, _, _, cur = pcall(love.window.getMode)
+    if okM and type(cur) == "table" then
+      for k, v in pairs(cur) do flags[k] = v end
+    end
+  end
+  flags.resizable = true
+  flags.borderless = false
+  flags.fullscreen = false
+  -- x/y come from setPosition below; leaving them in confuses the placement.
+  flags.x, flags.y = nil, nil
+
+  if vsyncMode == "on" then flags.vsync = 1
+  elseif vsyncMode == "off" then flags.vsync = 0
+  elseif vsyncMode ~= "keep" then flags.vsync = 0 end   -- "auto"
+
+  pcall(love.window.setMode, w, h, flags)
   pcall(love.window.setPosition, col * w, row * h)
   return true
 end

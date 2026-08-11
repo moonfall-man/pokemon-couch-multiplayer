@@ -169,6 +169,16 @@ local optionRows = {
       .. "party-menu icons instead, which are shared archetypes." },
 }
 
+optionRows[#optionRows + 1] =
+  { key = "vsync", type = "choice", label = "VSYNC", default = "auto",
+    choices = { { "AUTO", "auto" }, { "OFF", "off" }, { "ON", "on" }, { "KEEP", "keep" } },
+    description = "AUTO turns vsync OFF on a split screen and changes "
+      .. "nothing for one player. Two windows waiting on the same screen's "
+      .. "refresh do not share it fairly -- one runs well and the other "
+      .. "crawls. With it off the engine's own FPS CAP paces instead. ON if "
+      .. "you would rather have tearing-free frames than even ones; KEEP "
+      .. "touches nothing. Takes effect next launch." }
+
 for _, row in ipairs(Audio.schema()) do optionRows[#optionRows + 1] = row end
 for _, row in ipairs(Hotkeys.schema()) do optionRows[#optionRows + 1] = row end
 mod.options:define(optionRows)
@@ -218,7 +228,7 @@ do
 
     -- Put this window in its own quadrant. Every instance does its own, from
     -- its own player number -- no waiting on anyone else's window to exist.
-    Couch.tileSelf(couch.index, couch.players)
+    Couch.tileSelf(couch.index, couch.players, opt("vsync") or "auto")
 
     -- Start the others. Guarded three ways inside: never from a child, never
     -- below 2 players, never twice.
@@ -426,6 +436,11 @@ local function dumpStatus(myMap, cur)
     ("pads      : %s"):format(PadOwner.roster()),
     ("audio     : %s%s"):format(Audio.describe(),
       couch.audio and (" via " .. table.concat(couch.audio, ", ")) or " (not installed)"),
+    -- Frame rate per window, because "the second one is slower" needs a
+    -- number from BOTH windows to mean anything -- and because vsync makes
+    -- the interesting failure a suspiciously round one (two windows sharing
+    -- a 60Hz display land on 30 each rather than degrading smoothly).
+    ("perf      : %s"):format(Couch.describeMode()),
     -- The reconnect's own inputs. "Not reconnecting" has two very different
     -- causes -- it thinks the link is fine, or it is waiting out a backoff --
     -- and they are indistinguishable from the status line alone.
