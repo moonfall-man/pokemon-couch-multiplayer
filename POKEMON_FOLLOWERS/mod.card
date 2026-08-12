@@ -1,0 +1,30 @@
+-- Sharing metadata, read by tooling and the manager detail pane.
+return {
+  summary = "Your lead Pokemon hovers behind you -- all 151, built from your own ROM.",
+  author = "moonfall-man",
+  contact = "https://github.com/moonfall-man/pokemon-couch-multiplayer",
+  tags = { "followers", "pokemon", "overworld", "sprites", "cosmetic" },
+  differences = {
+    changed = {
+      "nothing about your own game: no shared saves, party, flags, scripts, encounters or battles",
+      "the follower draws but never blocks -- it lives in ow.npcs and never in ow.entities, the same trick Yellow's Pikachu uses",
+    },
+    added = {
+      "your lead Pokemon hovers behind you in the overworld, all 151 species",
+      "per-species art generated on first boot by shrinking the front battle sprites this game already extracted from your own cartridge dump",
+      "spriteFor(game, species) published to other mods, which is how COUCH MULTIPLAYER gives other players' ghosts a Pokemon too",
+    },
+    known = {
+      "followers HOVER rather than walk: Gen 1 has no walking overworld art for Pokemon at all -- 73 character sheets and, in Yellow only, SPRITE_PIKACHU",
+      "first boot builds the frames and takes a moment; later boots reuse the cache in your save folder",
+      "MON ART takes effect on the next launch, because registering sprites is a load-time phase",
+      "no art before you have a starter, and none for a fainted lead",
+      "ships no game data -- the art derives from your own ROM at runtime and nothing is downloaded",
+    },
+  },
+  credits = {
+    { who = "pret/pokered", for_ = "the disassembly the engine's sprite and palette data derives from" },
+    { who = "gen1recomp", for_ = "the passable-follower pattern, from its port of Yellow's pikachu_follow.asm" },
+  },
+  compat = { engine = ">=0.1.37 <2.0.0", modApi = 2 },
+}

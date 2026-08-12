@@ -29,8 +29,8 @@ gen1recomp-*/
 # --------------------------------------------------------------- generated art
 # Follower frames are built from your ROM on first boot and live in the save
 # directory, but ignore the mod-local folder too in case anything lands there.
-COUCH_MULTIPLAYER/assets/followers/*.png
-COUCH_MULTIPLAYER/assets/followers/*.gif
+POKEMON_FOLLOWERS/assets/followers/*.png
+POKEMON_FOLLOWERS/assets/followers/*.gif
 
 # ----------------------------------------------------------------------- junk
 .DS_Store

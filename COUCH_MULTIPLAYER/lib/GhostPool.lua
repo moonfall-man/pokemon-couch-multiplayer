@@ -14,7 +14,6 @@
 local V = ...
 
 local Ghost = V.require("Ghost")
-local FollowerSprites = V.require("FollowerSprites")
 
 local GhostPool = {}
 GhostPool.__index = GhostPool
@@ -33,15 +32,22 @@ function GhostPool.new(opts)
     bodySprite = (opts and opts.bodySprite) or "SPRITE_BLUE",
     followers = (opts and opts.followers) ~= false,
     marker = (opts and opts.marker) ~= false,
+    -- INJECTED, and allowed to be nil. The art lives in POKEMON FOLLOWERS
+    -- now, which may not be installed; this pool does not know or care where
+    -- a sprite id comes from, only that something can answer the question.
+    spriteFor = (opts and opts.spriteFor) or nil,
     myMapId = nil,
   }, GhostPool)
 end
 
--- The follower sprite for a peer, or nil when followers are switched off or
--- the species has no art and no icon.
+-- The follower sprite for a peer, or nil when followers are switched off, no
+-- art mod is installed, or the species has no art and no icon. Ghost:place
+-- takes a nil footSprite happily, so all three end the same way: a player
+-- with nothing hovering behind them.
 function GhostPool:footSpriteFor(game, species)
   if not self.followers then return nil end
-  return FollowerSprites.spriteFor(game, species)
+  if not self.spriteFor then return nil end
+  return self.spriteFor(game, species)
 end
 
 -- The body a peer asked to be drawn as, if this build actually has it.

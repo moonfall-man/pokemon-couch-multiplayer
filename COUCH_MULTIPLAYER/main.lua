@@ -3,9 +3,14 @@
 -- Everyone runs their own complete, independent game -- own save, own party,
 -- own progress. The only thing crossing the wire is where each player is
 -- standing. On your screen, a player who happens to be on your map appears as
--- a walking figure with their lead Pokemon trailing behind. You cannot talk to
--- them, battle them, block them or be blocked by them. You walk straight
--- through each other.
+-- a walking figure. You cannot talk to them, battle them, block them or be
+-- blocked by them. You walk straight through each other.
+--
+-- Install POKEMON FOLLOWERS alongside this and each of those figures gets
+-- their lead Pokemon hovering behind them; without it they are just the
+-- figure. The art was part of this mod once and is its own now -- generating
+-- 151 sprites from battle art needs no network, no second window and no
+-- second controller, so it had no business being welded to a co-op mod.
 --
 -- That is a deliberate ceiling, not a first version. Gen 1's overworld has one
 -- script runner, one warp table, one encounter roll and one save; two players
@@ -49,41 +54,52 @@ function V.require(name)
   return value
 end
 
-local dataFiles = {}
-function V.data(name)
-  local hit = dataFiles[name]
-  if hit ~= nil then return hit end
-  local value = chunkFor("data/" .. name .. ".lua")(V)
-  dataFiles[name] = value
-  return value
-end
-
 local Transport = V.require("Transport")
 local Wire = V.require("Wire")
 local Presence = V.require("Presence")
 local GhostPool = V.require("GhostPool")
-local FollowerSprites = V.require("FollowerSprites")
-local LocalFollower = V.require("LocalFollower")
-
--- ------- follower art
+-- ------- the Pokemon behind a ghost
 --
--- Registered during the entry chunk, which is the content-registration phase.
--- Two sources: your own per-species PNGs if you supplied any, and the ROM's
--- party-menu icons, which cover all 151 species out of the box. Zero supplied
--- PNGs is the normal state and is not an error -- the icons carry it.
+-- Not this mod's art any more. Generating 151 follower frames from battle
+-- sprites needs no network, no second window and no second controller, so it
+-- is POKEMON FOLLOWERS now, and this asks that mod for the one thing a ghost
+-- needs: what a species looks like hovering.
+--
+-- OPTIONAL, in both directions. Without it, ghosts are still ghosts -- a
+-- walking figure with nothing behind them. Ghost:place already takes a nil
+-- footSprite, so there is nothing to special-case.
+--
+-- Resolved LAZILY rather than here. mod.find only sees a mod that has already
+-- loaded, and load order is the loader's business; asking on the first tick
+-- means this works whichever way round the two mods happen to load.
+local followers = { tried = false, spriteFor = nil, counts = nil }
 
--- MON ART has to be read here rather than deferred to session start, because
--- sprite registration is a load-time phase and cannot be redone later. The
--- loader folds modOptions in before any entry chunk runs, so the saved value
--- is already there; a failure defaults to on.
-local romMode = "on"
-do
-  local ok, v = pcall(function() return mod.options:get("romart") end)
-  if ok and v == false then romMode = "off" end
+-- Asked once, from the first tick rather than from the first ghost that wants
+-- art. Those are very different moments: a ghost needing art requires another
+-- player to be standing on your map with a Pokemon, which may not happen for
+-- an hour, and until then the status dump could only say "not asked yet" --
+-- which is useless precisely when someone is trying to find out why nothing
+-- is hovering.
+local function resolveFollowers()
+  if followers.tried then return end
+  followers.tried = true
+  local ok, handle = pcall(mod.find, "POKEMON_FOLLOWERS")
+  local api = ok and handle and handle.exports or nil
+  if not (api and type(api.spriteFor) == "function") then return end
+  followers.spriteFor = api.spriteFor
+  followers.version = handle.version
+  if type(api.counts) == "function" then
+    local okC, c = pcall(api.counts)
+    followers.counts = okC and c or nil
+  end
 end
 
-local followerArt, followerRom, followerIcons = FollowerSprites.registerAll(romMode)
-local localFollower = LocalFollower.new()
+local function followerArtFor(game, species)
+  resolveFollowers()
+  if not followers.spriteFor then return nil end
+  local ok, id = pcall(followers.spriteFor, game, species)
+  return ok and id or nil
+end
 
 -- ------- configuration
 --
@@ -122,6 +138,7 @@ local PadOwner = V.require("PadOwner")
 local PadFilter = V.require("PadFilter")
 local Hotkeys = V.require("Hotkeys")
 local Audio = V.require("Audio")
+local HudAddress = V.require("HudAddress")
 
 local optionRows = {
   -- FIRST ROW, and the only one most people will ever touch.
@@ -145,6 +162,11 @@ local optionRows = {
       .. "session; JOIN dials the address below. IGNORED when PLAYERS is 2 or "
       .. "more -- a split screen links itself, player 1 hosting. This row is "
       .. "for two people on two PCs." },
+  { key = "showaddr", type = "toggle", label = "SHOW ADDR", default = true,
+    description = "Put the address on screen while nobody is connected, so "
+      .. "the other player can type it without leaving the sofa. Disappears "
+      .. "the moment someone joins, which doubles as the confirmation that "
+      .. "they did." },
   { key = "address", type = "text", label = "GHOST ADDR", default = "127.0.0.1",
     description = "Who to dial when GHOSTS is JOIN. 127.0.0.1 is another copy "
       .. "on this same PC; otherwise the host's LAN address." },
@@ -155,18 +177,12 @@ local optionRows = {
     description = "How OTHER players see you. Give each player a different "
       .. "one so you can tell each other apart." },
   { key = "follower", type = "toggle", label = "GHOST MON", default = true,
-    description = "Show each ghost's lead Pokemon hovering behind them, using "
-      .. "its party-menu icon." },
+    description = "Show each ghost's lead Pokemon hovering behind them. Needs "
+      .. "the POKEMON FOLLOWERS mod for the art; without it a ghost is just "
+      .. "the walking figure." },
   { key = "marker", type = "toggle", label = "BTL MARKER", default = true,
     description = "Spin a POKe BALL over a ghost's head while that player is "
       .. "in a battle." },
-  { key = "mymon", type = "toggle", label = "MY MON", default = true,
-    description = "Your own lead Pokemon hovers behind you, on your own "
-      .. "screen. Works with GHOSTS off -- it needs no network at all." },
-  { key = "romart", type = "toggle", label = "MON ART", default = true,
-    description = "Build real per-species followers by shrinking the battle "
-      .. "sprites this game extracted from your own ROM. OFF uses the "
-      .. "party-menu icons instead, which are shared archetypes." },
 }
 
 optionRows[#optionRows + 1] =
@@ -305,7 +321,6 @@ local function resolveConfig()
     name = env("POKEGHOST_NAME"),
     follower = opt("follower") ~= false,
     marker = opt("marker") ~= false,
-    myMon = opt("mymon") ~= false,
   }
   cfg.enabled = (role == "host") or (role == "join")
   return cfg
@@ -365,10 +380,11 @@ local function start()
     bodySprite = config.sprite,
     followers = config.follower,
     marker = config.marker,
+    -- nil when POKEMON FOLLOWERS is not installed, which the pool handles.
+    spriteFor = followerArtFor,
   })
   session.status = config.host and ("hosting " .. tostring(t.address)) or ("joined " .. tostring(config.join))
-  log("%s (%d supplied, %d from ROM, %d icon archetypes)",
-      session.status, followerArt, followerRom, followerIcons)
+  log("%s", session.status)
 end
 
 -- ------- reconnect state
@@ -426,7 +442,16 @@ local function dumpStatus(myMap, cur)
     ("ghosts    : %s"):format(detail ~= "" and detail or "(none)"),
     ("received  : %s"):format(#counts > 0 and table.concat(counts, " ") or "(nothing)"),
     ("my id     : %s"):format(tostring(session.presence and session.presence.id)),
-    ("followers : %d supplied, %d rom, %d icons"):format(followerArt, followerRom, followerIcons),
+    -- Whether the companion mod is here at all, and what it built. "Ghosts
+    -- have no Pokemon behind them" has two very different causes -- the mod
+    -- is not installed, or it is and the species has no art -- and they look
+    -- identical from the sofa.
+    ("followers : %s"):format(
+      followers.counts
+        and ("%d supplied, %d rom, %d icons"):format(
+              followers.counts.supplied or 0, followers.counts.rom or 0,
+              followers.counts.icons or 0)
+        or (followers.tried and "POKEMON_FOLLOWERS not installed" or "not asked yet")),
     -- "which pad, and can it be heard unfocused" -- the two ways a player
     -- ends up unable to move, and they look identical from the couch.
     ("pad       : player %d of %d, %s, background=%s"):format(
@@ -554,19 +579,13 @@ mod.hooks:wrap("input.step", function(next, game, dt)
   pcall(Hotkeys.step, game, opt, PadOwner.filtering and PadOwner.owns or nil)
 
   start()   -- resolves config on the first tick; a no-op thereafter
+  resolveFollowers()   -- asks once whether the art mod is here
 
   -- BOTH roles beat. The joiner is listening for the host's, so a host that
   -- only pinged while its player was walking around would still look dead
   -- from a menu -- which was the whole bug.
   heartbeat((love and love.timer and love.timer.getTime and love.timer.getTime()) or 0)
   retryJoin()
-
-  -- Your own Pokemon follows you whether or not anyone else is connected --
-  -- this is the half of the mod that needs no network.
-  local world = mod.world
-  pcall(function()
-    localFollower:update(world, game, FollowerSprites.spriteFor, config.myMon)
-  end)
 
   local t = session.transport
   if not t then return end
@@ -662,6 +681,32 @@ end)
 -- the stack underneath a battle, so world:current() keeps reporting where
 -- this player is standing -- their ghost simply stops moving and grows a
 -- spinning ball rather than vanishing.
+
+-- The address, on screen, until somebody joins.
+--
+-- Registered only when this session could possibly link up. wantsHook makes
+-- the engine call this every frame once it exists, and a single player who
+-- never turned any of this on should not pay for a hook that would draw
+-- nothing -- the same promise PLAYERS = 1 makes everywhere else.
+do
+  local role = opt("role") or "off"
+  local couldLink = couch.players > 1 or role == "host" or role == "join"
+    or env("POKEGHOST_HOST") == "1" or env("POKEGHOST_JOIN") ~= nil
+  if couldLink then
+    mod.hooks:wrap("render.hud", function(next, game, viewport)
+      next(game, viewport)
+      if opt("showaddr") == false then return end
+      local t = session.transport
+      pcall(HudAddress.draw, viewport, {
+        mode = config.enabled and config.role or "off",
+        role = config.role,
+        address = t and t.address or nil,
+        join = config.join,
+        peers = t and t:peerCount() or 0,
+      })
+    end)
+  end
+end
 
 mod.events:on("battle.started", function()
   if session.presence then
@@ -787,8 +832,5 @@ mod.exports.ghosts = function() return session.pool and session.pool:count() or 
 mod.exports.peers = function()
   return session.transport and session.transport:peerCount() or 0
 end
-mod.exports.followers = followerArt
-mod.exports.followerRom = followerRom
-mod.exports.followerIcons = followerIcons
 mod.exports.stop = stop
 mod.exports.lib = V

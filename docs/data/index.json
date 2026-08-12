@@ -1,9 +1,10 @@
 {
     "schema_version":  1,
-    "generated_at":  "2026-08-11T02:05:38Z",
+    "generated_at":  "2026-08-12T21:32:49Z",
     "categories":  [
                        "CONTROLS",
-                       "MULTIPLAYER"
+                       "MULTIPLAYER",
+                       "COSMETIC"
                    ],
     "mods":  [
                  {
@@ -11,7 +12,7 @@
                      "folder":  "COUCH_MULTIPLAYER",
                      "title":  "COUCH MULTIPLAYER",
                      "author":  "moonfall-man",
-                     "version":  "0.3.1",
+                     "version":  "0.4.0",
                      "summary":  "Split screen on one PC -- set PLAYERS and load your save. Nothing else to install.",
                      "categories":  [
                                         "MULTIPLAYER"
@@ -28,7 +29,7 @@
                      "license":  "MIT",
                      "repo":  "https://github.com/moonfall-man/pokemon-couch-multiplayer",
                      "github":  "moonfall-man/pokemon-couch-multiplayer",
-                     "downloadURL":  "https://github.com/moonfall-man/pokemon-couch-multiplayer/releases/download/v0.3.1/COUCH_MULTIPLAYER-0.3.1.zip",
+                     "downloadURL":  "https://github.com/moonfall-man/pokemon-couch-multiplayer/releases/download/v0.4.0/COUCH_MULTIPLAYER-0.4.0.zip",
                      "api":  2,
                      "game_version":  "0.0.0-dev || \u003e=0.1.37 \u003c2.0.0",
                      "profile":  "content",
@@ -47,6 +48,43 @@
                                        "GHOST_LINK"
                                    ],
                      "description_url":  "https://github.com/moonfall-man/pokemon-couch-multiplayer/blob/master/COUCH_MULTIPLAYER/README.md"
+                 },
+                 {
+                     "id":  "POKEMON_FOLLOWERS",
+                     "folder":  "POKEMON_FOLLOWERS",
+                     "title":  "POKEMON FOLLOWERS",
+                     "author":  "moonfall-man",
+                     "version":  "0.1.0",
+                     "summary":  "Your lead Pokemon hovers behind you -- all 151, built from your own ROM.",
+                     "categories":  [
+                                        "COSMETIC"
+                                    ],
+                     "tags":  [
+                                  "followers",
+                                  "pokemon",
+                                  "overworld",
+                                  "sprites",
+                                  "cosmetic"
+                              ],
+                     "license":  "MIT",
+                     "repo":  "https://github.com/moonfall-man/pokemon-couch-multiplayer",
+                     "github":  "moonfall-man/pokemon-couch-multiplayer",
+                     "downloadURL":  "https://github.com/moonfall-man/pokemon-couch-multiplayer/releases/download/v0.4.0/POKEMON_FOLLOWERS-0.1.0.zip",
+                     "api":  2,
+                     "game_version":  "0.0.0-dev || \u003e=0.1.37 \u003c2.0.0",
+                     "profile":  "content",
+                     "affects_link":  false,
+                     "permissions":  [
+                                         "engine_internals",
+                                         "filesystem"
+                                     ],
+                     "dependencies":  [
+
+                                      ],
+                     "conflicts":  [
+                                       "GHOST_LINK"
+                                   ],
+                     "description_url":  "https://github.com/moonfall-man/pokemon-couch-multiplayer/blob/master/POKEMON_FOLLOWERS/README.md"
                  }
              ]
 }

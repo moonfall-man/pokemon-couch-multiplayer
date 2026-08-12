@@ -1,0 +1,21 @@
+{
+  "id": "POKEMON_FOLLOWERS",
+  "name": "POKEMON FOLLOWERS",
+  "version": "0.1.0",
+  "api": 2,
+  "github": "moonfall-man/pokemon-couch-multiplayer",
+  "entry": "main.lua",
+  "profile": "content",
+  "category": "COSMETIC",
+  "game_version": "0.0.0-dev || >=0.1.37 <2.0.0",
+  "priority": 5,
+  "dependencies": [],
+  "optional_dependencies": [],
+  "conflicts": ["GHOST_LINK"],
+  "permissions": [
+    "engine_internals",
+    "filesystem"
+  ],
+  "affects_link": false,
+  "description": "Your lead Pokemon hovers behind you in the overworld, for all 151 species. Gen 1 has no walking overworld art for Pokemon -- the ROM has 73 character sheets and, in Yellow only, SPRITE_PIKACHU -- so followers hover instead, which needs one 16x16 frame rather than six frames across four directions. That single change is what makes every species possible: the art is generated on first boot by shrinking the front battle sprites the game already extracted from your own cartridge dump, coloured with the game's own per-species palettes. Nothing is downloaded and nothing is redistributed. The follower draws but never blocks, using the engine's own passable-NPC pattern from Yellow's Pikachu. Also publishes its sprite lookup to other mods, which is how COUCH MULTIPLAYER puts a Pokemon behind other players."
+}

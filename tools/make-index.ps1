@@ -30,7 +30,7 @@ $root = Split-Path -Parent (Split-Path -Parent $MyInvocation.MyCommand.Path)
 if ($Out -eq "") { $Out = Join-Path $root "docs\index.json" }
 New-Item -ItemType Directory -Path (Split-Path -Parent $Out) -Force | Out-Null
 
-$MODS = @("COUCH_MULTIPLAYER")
+$MODS = @("COUCH_MULTIPLAYER", "POKEMON_FOLLOWERS")
 
 $entries = @()
 foreach ($m in $MODS) {
@@ -84,7 +84,7 @@ foreach ($m in $MODS) {
 $doc = [ordered]@{
   schema_version = 1
   generated_at   = (Get-Date).ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ")
-  categories     = @("CONTROLS", "MULTIPLAYER")
+  categories     = @("CONTROLS", "MULTIPLAYER", "COSMETIC")
   mods           = $entries
 }
 

@@ -111,19 +111,54 @@ end
 -- megabytes of small files, and robocopy / cp do it in a fraction of the time
 -- a byte-wise Lua copy would take.
 
+-- Does this path exist -- FILE OR DIRECTORY.
+--
+-- The directory half used to probe `path .. "\\."` and that never worked. It
+-- returned false for every directory on Windows, silently, and the checks
+-- built on it simply did not happen:
+--
+--   mirrorDir's source guard        -> mods were never mirrored
+--   linkOrCopyDir's "already there" -> re-linked and re-copied every launch
+--   the ghostlink hand-over         -> never copied, so every new player
+--                                      rebuilt all 151 frames after all
+--
+-- Only the checks against real FILES worked, which is why the rest of this
+-- file looked fine: rom-cache.complete and options.lua are files.
+--
+-- Renaming a path to itself succeeds when it exists and moves nothing --
+-- files, directories and junctions alike, verified on all four. It is also
+-- portable, where the Windows "\\nul" device trick that would also work is
+-- not. The io.open fast path stays because it answers for files without
+-- touching the filesystem's rename machinery.
 local function exists(path)
   local f = io.open(path, "rb")
   if f then f:close(); return true end
-  -- directories do not open as files on every platform; probe a known child
-  local probe = io.open(path .. (isWindows() and "\\." or "/."), "rb")
-  if probe then probe:close(); return true end
-  return false
+  return os.rename(path, path) and true or false
 end
 
 local function shell(cmd)
   local HostShell = require("src.core.HostShell")
   local p = HostShell.popen(cmd)
   if p then HostShell.pclose(p) end
+end
+
+-- Make `to` match `from` exactly, deletions included.
+--
+-- Only for directories this mod owns the contents of -- see the note at the
+-- call site. robocopy /MIR is /E plus /PURGE; rsync --delete is the same
+-- bargain. Both will happily empty the destination if the source is missing,
+-- so the source is checked first: a mistyped path should do nothing rather
+-- than wipe a player's mods.
+local function mirrorDir(from, to)
+  if not exists(from) then return false end
+  if isWindows() then
+    shell(('robocopy "%s" "%s" /MIR /R:1 /W:1 /NFL /NDL /NJH /NJS /NC /NS >nul 2>&1')
+      :format(from, to))
+  else
+    shell(('mkdir -p "%s" && rsync -a --delete "%s/" "%s/" 2>/dev/null')
+      :format(to, from, to))
+  end
+  return true
 end
 
 local function shellCopyDir(from, to)
@@ -174,9 +209,23 @@ function Couch.cloneProfile(n)
   if not (from and to) or from == to then return false end
   local sep = isWindows() and "\\" or "/"
 
-  -- Mods every time: this is how an updated mod reaches the other players,
-  -- and it is small.
-  shellCopyDir(from .. sep .. "mods", to .. sep .. "mods")
+  -- Mods every time: this is how an updated mod reaches the other players.
+  --
+  -- MIRRORED, not merely copied, and that distinction is a bug fix. A plain
+  -- copy adds and overwrites but never removes, so a mod uninstalled on
+  -- player 1 stayed installed on players 2-4 forever -- they drifted apart
+  -- silently, one launch at a time, and the only symptom was the other
+  -- windows behaving like a setup nobody remembered choosing.
+  --
+  -- Caught by moving POKEMON_FOLLOWERS out of player 1's mods folder: player
+  -- 1 correctly reported it missing while player 2 was still happily loading
+  -- its stale copy.
+  --
+  -- This DELETES from the child's mods folder. That is the intent -- these
+  -- profiles are derived from player 1 and exist to match it -- but it does
+  -- mean a mod installed only in a child window will not survive the next
+  -- launch. Install it for player 1 and let it propagate.
+  mirrorDir(from .. sep .. "mods", to .. sep .. "mods")
 
   -- The ROM cache, linked rather than copied -- see linkOrCopyDir.
   local GameVersion = require("src.core.GameVersion")

@@ -14,7 +14,7 @@
 
 local V = ...
 
-local Ghost = V.require("Ghost")
+local PassableNpc = V.require("PassableNpc")
 
 local LocalFollower = {}
 LocalFollower.__index = LocalFollower
@@ -57,7 +57,7 @@ local function leadSpecies(game)
 end
 
 function LocalFollower:despawn(world)
-  if self.npc then Ghost.despawnNpc(world, self.npc) end
+  if self.npc then PassableNpc.despawn(world, self.npc) end
   self.npc = nil
   self.px, self.py = nil, nil
   self.prevX, self.prevY = nil, nil
@@ -68,7 +68,7 @@ function LocalFollower:spawn(world, game, spriteId, x, y)
   self:despawn(world)
   local ow = overworld(world)
   if not (ow and ow.map) then return false end
-  local npc = Ghost.spawnPassableNpc(world, game, ow.map.id, spriteId, x, y,
+  local npc = PassableNpc.spawn(world, game, ow.map.id, spriteId, x, y,
                                      "GHOSTLINK_MYMON")
   if not npc then return false end
   self.npc = npc

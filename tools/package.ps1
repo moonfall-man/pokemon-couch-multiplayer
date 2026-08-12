@@ -33,7 +33,7 @@ $root = Split-Path -Parent (Split-Path -Parent $MyInvocation.MyCommand.Path)
 if ($OutDir -eq "") { $OutDir = Join-Path $root "dist" }
 New-Item -ItemType Directory -Path $OutDir -Force | Out-Null
 
-$MODS = @("COUCH_MULTIPLAYER")
+$MODS = @("COUCH_MULTIPLAYER", "POKEMON_FOLLOWERS")
 
 # Files that are ours to develop with but not to ship. tools/ is Python for
 # regenerating data tables; nobody installing the mod runs it.

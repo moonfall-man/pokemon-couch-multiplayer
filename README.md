@@ -7,7 +7,7 @@ reimplementation of Gen 1.
 **One mod. Import it, set `PLAYERS`, load your save.**
 
 ```
-MODS -> Import mod .zip -> COUCH_MULTIPLAYER-0.3.1.zip
+MODS -> Import mod .zip -> COUCH_MULTIPLAYER-0.4.0.zip
 MODS -> COUCH MULTIPLAYER -> OPTIONS.. -> PLAYERS: 2
 ```
 
@@ -24,7 +24,8 @@ rather than showing a second launcher, so the only wait is that one second.
 controller filtering, no socket. Installing this and playing alone is
 indistinguishable from not having it.
 
-→ **[COUCH_MULTIPLAYER/](COUCH_MULTIPLAYER/)** — the mod, and how it works
+→ **[COUCH_MULTIPLAYER/](COUCH_MULTIPLAYER/)** — the co-op mod, and how it works
+→ **[POKEMON_FOLLOWERS/](POKEMON_FOLLOWERS/)** — the follower art, optional
 
 ---
 
@@ -43,13 +44,16 @@ table, one encounter roll and one save; two players genuinely sharing those is
 a redesign of the game, not a mod. Presence is the part that's honestly
 additive.
 
-**Pokémon followers for all 151.** Gen 1 has *no walking overworld sprites for
-Pokémon* — the ROM has 73 character sheets and, in Yellow only,
-`SPRITE_PIKACHU`. So followers **hover** instead of walking, which needs one
-16×16 frame and no facings rather than six frames and four directions. That
-single change is what makes all 151 possible: the art is generated on first
-boot by shrinking the front battle sprites the game already extracted **from
-your own cartridge dump**, coloured with the game's own per-species palettes.
+**Pokémon followers for all 151** — in a separate mod. Gen 1 has *no walking
+overworld sprites for Pokémon*, so followers **hover**, which needs one 16×16
+frame instead of six frames across four directions. That is what makes every
+species possible. Install
+[POKEMON_FOLLOWERS](POKEMON_FOLLOWERS/) alongside and every player gets one;
+without it a ghost is just the walking figure.
+
+It lived in here once and shouldn't have — generating sprites from battle art
+has nothing to do with split screen. The two compose through one exported
+function.
 
 **Display hotkeys on the pad.** The engine's digit toggles — and every mod
 pipeline that claims one, including the voxel mod's ladders — are keyboard
